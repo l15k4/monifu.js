@@ -16,48 +16,51 @@
  
 package monifu.concurrent.cancelables
 
-import org.scalatest.FunSuite
+import scala.scalajs.test.JasmineTest
 
-class RefCountCancelableTest extends FunSuite {
-  test("cancel without dependent references") {
-    var isCanceled = false
-    val sub = RefCountCancelable { isCanceled = true }
-    sub.cancel()
+object RefCountCancelableTest extends JasmineTest {
+  describe("RefCountCancelable") {
+    it("should cancel without dependent references") {
+      var isCanceled = false
+      val sub = RefCountCancelable { isCanceled = true }
+      sub.cancel()
 
-    assert(isCanceled === true)
-  }
+      expect(sub.isCanceled).toBe(true)
+      expect(isCanceled).toBe(true)
+    }
 
-  test("execute onCancel with no dependent refs active") {
-    var isCanceled = false
-    val sub = RefCountCancelable { isCanceled = true }
+    it("should execute onCancel with no active refs available") {
+      var isCanceled = false
+      val sub = RefCountCancelable { isCanceled = true }
 
-    val s1 = sub.acquire()
-    val s2 = sub.acquire()
-    s1.cancel()
-    s2.cancel()
+      val s1 = sub.acquire()
+      val s2 = sub.acquire()
+      s1.cancel()
+      s2.cancel()
 
-    assert(isCanceled === false)
-    assert(sub.isCanceled === false)
+      expect(isCanceled).toBe(false)
+      expect(sub.isCanceled).toBe(false)
 
-    sub.cancel()
+      sub.cancel()
 
-    assert(isCanceled === true)
-    assert(sub.isCanceled === true)
-  }
+      expect(isCanceled).toBe(true)
+      expect(sub.isCanceled).toBe(true)
+    }
 
-  test("execute onCancel only after all dependent refs have been canceled") {
-    var isCanceled = false
-    val sub = RefCountCancelable { isCanceled = true }
+    it("should execute onCancel only after all dependent refs have been canceled") {
+      var isCanceled = false
+      val sub = RefCountCancelable { isCanceled = true }
 
-    val s1 = sub.acquire()
-    val s2 = sub.acquire()
-    sub.cancel()
+      val s1 = sub.acquire()
+      val s2 = sub.acquire()
+      sub.cancel()
 
-    assert(sub.isCanceled === true)
-    assert(isCanceled === false)
-    s1.cancel()
-    assert(isCanceled === false)
-    s2.cancel()
-    assert(isCanceled === true)
+      expect(sub.isCanceled).toBe(true)
+      expect(isCanceled).toBe(false)
+      s1.cancel()
+      expect(isCanceled).toBe(false)
+      s2.cancel()
+      expect(isCanceled).toBe(true)
+    }
   }
 }

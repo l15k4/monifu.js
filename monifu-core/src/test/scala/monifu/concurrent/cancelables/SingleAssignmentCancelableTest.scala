@@ -16,62 +16,59 @@
  
 package monifu.concurrent.cancelables
 
-import org.scalatest.FunSuite
-import monifu.concurrent.Cancelable
+import scala.scalajs.test.JasmineTest
 
-class SingleAssignmentCancelableTest extends FunSuite {
-  test("cancel()") {
-    var effect = 0
-    val s = SingleAssignmentCancelable()
-    val b = BooleanCancelable { effect += 1 }
-    s() = b
+object SingleAssignmentCancelableTest extends JasmineTest {
+  describe("SingleAssignmentCancelable") {
+    it("should cancel") {
+      var effect = 0
+      val s = SingleAssignmentCancelable()
+      val b = BooleanCancelable { effect += 1 }
+      s() = b
 
-    s.cancel()
-    assert(s.isCanceled === true)
-    assert(b.isCanceled === true)
-    assert(effect === 1)
+      s.cancel()
+      expect(s.isCanceled).toBe(true)
+      expect(b.isCanceled).toBe(true)
+      expect(effect).toBe(1)
 
-    s.cancel()
-    assert(effect === 1)
-  }
-
-  test("cancel on single assignment") {
-    val s = SingleAssignmentCancelable()
-    s.cancel()
-    assert(s.isCanceled)
-
-    var effect = 0
-    val b = BooleanCancelable { effect += 1 }
-    s() = b
-
-    assert(b.isCanceled === true)
-    assert(effect === 1)
-
-    s.cancel()
-    assert(effect === 1)
-  }
-
-  test("throw exception on multi assignment") {
-    val s = SingleAssignmentCancelable()
-    val b1 = Cancelable()
-    s() = b1
-
-    intercept[IllegalStateException] {
-      val b2 = Cancelable()
-      s() = b2
+      s.cancel()
+      expect(effect).toBe(1)
     }
-  }
 
-  test("throw exception on multi assignment when canceled") {
-    val s = SingleAssignmentCancelable()
-    s.cancel()
+    it("should cancel on single assignment") {
+      val s = SingleAssignmentCancelable()
+      s.cancel()
+      expect(s.isCanceled).toBe(true)
 
-    val b1 = Cancelable()
-    s() = b1
+      var effect = 0
+      val b = BooleanCancelable { effect += 1 }
+      s() = b
 
-    intercept[IllegalStateException] {
-      val b2 = Cancelable()
-      s() = b2
+      expect(b.isCanceled).toBe(true)
+      expect(effect).toBe(1)
+
+      s.cancel()
+      expect(effect).toBe(1)
+    }
+
+    it("should throw exception on multi assignment") {
+      val s = SingleAssignmentCancelable()
+      val b1 = BooleanCancelable.alreadyCanceled
+      val b2 = BooleanCancelable.alreadyCanceled
+
+      s() = b1
+      expect(() => s() = b2).toThrow()
+    }
+
+    it("should throw exception on multi assignment when canceled") {
+      val s = SingleAssignmentCancelable()
+      s.cancel()
+
+      val b1 = BooleanCancelable.alreadyCanceled
+      s() = b1
+
+      val b2 = BooleanCancelable.alreadyCanceled
+      expect(() => s() = b2).toThrow()
     }
   }
 }

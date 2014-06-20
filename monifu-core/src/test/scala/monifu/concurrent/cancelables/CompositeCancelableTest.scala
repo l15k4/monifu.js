@@ -16,33 +16,35 @@
  
 package monifu.concurrent.cancelables
 
-import org.scalatest.FunSuite
+import scala.scalajs.test.JasmineTest
 
-class CompositeCancelableTest extends FunSuite {
-  test("cancel") {
-    val s = CompositeCancelable()
-    val b1 = BooleanCancelable()
-    val b2 = BooleanCancelable()
-    s += b1
-    s += b2
-    s.cancel()
+object CompositeCancelableTest extends JasmineTest {
+  describe("CompositeCancelable") {
+    it("should cancel") {
+      val s = CompositeCancelable()
+      val b1 = BooleanCancelable()
+      val b2 = BooleanCancelable()
+      s += b1
+      s += b2
+      s.cancel()
 
-    assert(s.isCanceled === true)
-    assert(b1.isCanceled === true)
-    assert(b2.isCanceled === true)
-  }
+      expect(s.isCanceled).toBe(true)
+      expect(b1.isCanceled).toBe(true)
+      expect(b2.isCanceled).toBe(true)
+    }
 
-  test("cancel on assignment after being canceled") {
-    val s = CompositeCancelable()
-    val b1 = BooleanCancelable()
-    s += b1
-    s.cancel()
+    it("should cancel on assignment after being canceled") {
+      val s = CompositeCancelable()
+      val b1 = BooleanCancelable()
+      s += b1
+      s.cancel()
 
-    val b2 = BooleanCancelable()
-    s += b2
+      val b2 = BooleanCancelable()
+      s += b2
 
-    assert(s.isCanceled === true)
-    assert(b1.isCanceled === true)
-    assert(b2.isCanceled === true)
+      expect(s.isCanceled).toBe(true)
+      expect(b1.isCanceled).toBe(true)
+      expect(b2.isCanceled).toBe(true)
+    }
   }
 }

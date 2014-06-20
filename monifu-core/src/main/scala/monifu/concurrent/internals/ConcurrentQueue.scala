@@ -16,19 +16,22 @@
  
 package monifu.concurrent.internals
 
-import java.util.concurrent.ConcurrentLinkedQueue
-import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 private[monifu] final class ConcurrentQueue[T](elems: T*) {
-  private[this] val underlying =
-    new ConcurrentLinkedQueue[T](elems.asJavaCollection)
+  private[this] val underlying: mutable.Queue[T] =
+    mutable.Queue(elems : _*)
 
   def offer(elem: T): Unit = {
-    underlying.offer(elem)
+    if (elem == null) throw null
+    underlying.enqueue(elem)
   }
 
   def poll(): T = {
-    underlying.poll()
+    if (underlying.isEmpty)
+      null.asInstanceOf[T]
+    else
+      underlying.dequeue()
   }
 
   def isEmpty: Boolean = {

@@ -16,54 +16,64 @@
  
 package monifu.concurrent.cancelables
 
-import org.scalatest.FunSuite
+import scala.scalajs.test.JasmineTest
 
-class MultiAssignmentCancelableTest extends FunSuite {
-  test("cancel()") {
-    var effect = 0
-    val sub = BooleanCancelable(effect += 1)
-    val mSub = MultiAssignmentCancelable(sub)
+object MultiAssignmentCancelableTest extends JasmineTest {
+  describe("MultiAssignmentCancelable") {
+    it("should cancel()") {
+      var effect = 0
+      val sub = BooleanCancelable(effect += 1)
+      val mSub = MultiAssignmentCancelable(sub)
 
-    assert(effect === 0)
-    assert(!sub.isCanceled)
-    assert(!mSub.isCanceled)
+      expect(effect).toBe(0)
+      expect(sub.isCanceled).toBe(false)
+      expect(mSub.isCanceled).toBe(false)
 
-    mSub.cancel()
-    assert(sub.isCanceled && mSub.isCanceled)
-    assert(effect === 1)
+      mSub.cancel()
+      expect(effect).toBe(1)
+      expect(sub.isCanceled).toBe(true)
+      expect(mSub.isCanceled).toBe(true)
 
-    mSub.cancel()
-    assert(sub.isCanceled && mSub.isCanceled)
-    assert(effect === 1)
-  }
+      mSub.cancel()
+      expect(effect).toBe(1)
+      expect(sub.isCanceled).toBe(true)
+      expect(mSub.isCanceled).toBe(true)
+    }
 
-  test("cancel() after second assignment") {
-    var effect = 0
-    val sub = BooleanCancelable(effect += 1)
-    val mSub = MultiAssignmentCancelable(sub)
-    val sub2 = BooleanCancelable(effect += 10)
-    mSub() = sub2
+    it("should cancel() after second assignment") {
+      var effect = 0
+      val sub = BooleanCancelable(effect += 1)
+      val mSub = MultiAssignmentCancelable(sub)
+      val sub2 = BooleanCancelable(effect += 10)
+      mSub() = sub2
 
-    assert(effect === 0)
-    assert(!sub.isCanceled && !sub2.isCanceled && !mSub.isCanceled)
+      expect(effect).toBe(0)
+      expect(sub.isCanceled).toBe(false)
+      expect(sub2.isCanceled).toBe(false)
+      expect(mSub.isCanceled).toBe(false)
 
-    mSub.cancel()
-    assert(sub2.isCanceled && mSub.isCanceled && !sub.isCanceled)
-    assert(effect === 10)
-  }
+      mSub.cancel()
+      expect(effect).toBe(10)
+      expect(sub.isCanceled).toBe(false)
+      expect(sub2.isCanceled).toBe(true)
+      expect(mSub.isCanceled).toBe(true)
+    }
 
-  test("automatically cancel assigned") {
-    val mSub = MultiAssignmentCancelable()
-    mSub.cancel()
+    it("should automatically cancel assigned") {
+      val mSub = MultiAssignmentCancelable()
+      mSub.cancel()
 
-    var effect = 0
-    val sub = BooleanCancelable(effect += 1)
+      var effect = 0
+      val sub = BooleanCancelable(effect += 1)
 
-    assert(effect === 0)
-    assert(!sub.isCanceled && mSub.isCanceled)
+      expect(effect).toBe(0)
+      expect(sub.isCanceled).toBe(false)
+      expect(mSub.isCanceled).toBe(true)
 
-    mSub() = sub
-    assert(effect === 1)
-    assert(sub.isCanceled)
+      mSub() = sub
+      expect(effect).toBe(1)
+      expect(sub.isCanceled).toBe(true)
+      expect(mSub.isCanceled).toBe(true)
+    }
   }
 }
