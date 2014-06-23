@@ -21,7 +21,7 @@ import scala.concurrent.Future
 import monifu.concurrent.Scheduler.Implicits.trampoline
 import concurrent.duration._
 import monifu.reactive._
-import monifu.reactive.api.Ack.{Continue, Cancel}
+import monifu.reactive.Ack.{Continue, Cancel}
 
 
 object ObservableTest extends JasmineTest {
