@@ -16,14 +16,14 @@
  
 package monifu.reactive
 
-import monifu.concurrent.{Cancelable, Scheduler}
-import monifu.concurrent.atomic.Atomic
+import monifu.concurrent.atomic.{Atomic, AtomicBoolean}
 import monifu.concurrent.cancelables.BooleanCancelable
+import monifu.concurrent.{Cancelable, Scheduler}
+import monifu.reactive.Ack.{Cancel, Continue}
+import monifu.reactive.BufferPolicy.BackPressured
+import monifu.reactive.subjects.{BehaviorSubject, ConnectableSubject, PublishSubject, ReplaySubject}
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{Future, Promise}
-import monifu.reactive.api.{Notification, BufferPolicy, Ack}
-import monifu.reactive.api.Ack.{Cancel, Continue}
-import monifu.reactive.subjects.{BehaviorSubject, ReplaySubject, PublishSubject, ConnectableSubject}
-import monifu.reactive.api.BufferPolicy.BackPressured
 
 /**
  * A `Subject` is a sort of bridge or proxy that acts both as an
@@ -137,22 +137,13 @@ trait Subject[-I, +T] extends Observable[T] with Observer[I] { self =>
   override final def flatten[U](implicit ev: <:<[T, Observable[U]]): Subject[I, U] =
     lift(_.flatten(ev))
 
-  override def flatMap[U](f: (T) => Observable[U]): Subject[I, U] =
+  override final def flatMap[U](f: (T) => Observable[U]): Subject[I, U] =
     lift(_.flatMap(f))
 
-  override final def merge[U](implicit ev: <:<[T, Observable[U]]): Subject[I, U] =
-    lift(_.merge(ev))
+  override final def merge[U](bufferPolicy: BufferPolicy, batchSize: Int)(implicit ev: <:<[T, Observable[U]]) =
+    lift(_.merge(bufferPolicy, batchSize))
 
-  override final def unsafeMerge[U](implicit ev: <:<[T, Observable[U]]): Subject[I, U] =
-    lift(_.unsafeMerge(ev))
-
-  override final def merge[U](bufferPolicy: BufferPolicy)(implicit ev: <:<[T, Observable[U]]): Subject[I, U] =
-    lift(_.merge(bufferPolicy)(ev))
-
-  override final def merge[U](parallelism: Int, bufferPolicy: BufferPolicy)(implicit ev: <:<[T, Observable[U]]): Subject[I, U] =
-    lift(_.merge(parallelism, bufferPolicy)(ev))
-
-  override def concatMap[U](f: (T) => Observable[U]): Subject[I, U] =
+  override final def concatMap[U](f: (T) => Observable[U]): Subject[I, U] =
     lift(_.concatMap(f))
 
   override final def find(p: (T) => Boolean): Subject[I, T] =
@@ -209,10 +200,10 @@ trait Subject[-I, +T] extends Observable[T] with Observer[I] { self =>
   override final def firstOrElse[U >: T](default: => U): Subject[I, U] =
     lift(_.firstOrElse(default))
 
-  override def take(n: Int): Subject[I, T] =
+  override final def take(n: Int): Subject[I, T] =
     lift(_.take(n))
 
-  override def doWork(cb: (T) => Unit): Subject[I, T] =
+  override final def doWork(cb: (T) => Unit): Subject[I, T] =
     lift(_.doWork(cb))
 
   override final def repeat: Subject[I, T] =
@@ -272,11 +263,32 @@ trait Subject[-I, +T] extends Observable[T] with Observer[I] { self =>
   override final def takeWhile(p: (T) => Boolean): Subject[I, T] =
     lift(_.takeWhile(p))
 
-  override final def takeWhile(isRefTrue: Atomic[Boolean]): Subject[I, T] =
+  override final def takeWhile(isRefTrue: AtomicBoolean): Subject[I, T] =
     lift(_.takeWhile(isRefTrue))
 
   override final def endWithError(error: Throwable): Subject[I, T] =
     lift(_.endWithError(error))
+
+  override final def ambWith[U >: T](other: Observable[U]): Subject[I, U] =
+    lift(_.ambWith(other))
+
+  override final def take(timespan: FiniteDuration): Subject[I, T] =
+    lift(_.take(timespan))
+
+  override final def drop(timespan: FiniteDuration): Subject[I, T] =
+    lift(_.drop(timespan))
+
+  override final def buffer(count: Int): Subject[I, Seq[T]] =
+    lift(_.buffer(count))
+
+  override final def buffer(timespan: FiniteDuration): Subject[I, Seq[T]] =
+    lift(_.buffer(timespan))
+
+  override final def defaultIfEmpty[U >: T](default: U): Subject[I, U] =
+    lift(_.defaultIfEmpty(default))
+
+  override final def dropWhileWithIndex(p: (T, Int) => Boolean): Subject[I, T] =
+    lift(_.dropWhileWithIndex(p))
 
   override final def lift[U](f: Observable[T] => Observable[U]): Subject[I,U] = {
     new Subject[I,U] {

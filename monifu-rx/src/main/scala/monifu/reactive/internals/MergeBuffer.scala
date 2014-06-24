@@ -17,13 +17,12 @@
 package monifu.reactive.internals
 
 import monifu.concurrent.atomic.Atomic
-import monifu.reactive.api.BufferPolicy.{OverflowTriggering, Unbounded}
-import monifu.reactive.{Observable, Observer}
+import monifu.reactive.Ack.{Continue, Cancel}
+import monifu.reactive.BufferPolicy.{Unbounded, OverflowTriggering}
+import monifu.reactive.{Ack, BufferPolicy, Observable, Observer}
 import monifu.reactive.observers.{SynchronousBufferedObserver, SynchronousObserver, BufferedObserver}
-import monifu.reactive.api.{Ack, BufferPolicy}
 import scala.annotation.tailrec
 import scala.concurrent.{Promise, Future}
-import monifu.reactive.api.Ack.{Cancel, Continue}
 import monifu.concurrent.Scheduler
 import scala.util.control.NonFatal
 import monifu.concurrent.locks.SpinLock
@@ -31,8 +30,6 @@ import monifu.concurrent.locks.SpinLock
 
 private[monifu] final class BoundedMergeBuffer[U](downstream: Observer[U], mergeBatchSize: Int, bufferPolicy: BufferPolicy)(implicit scheduler: Scheduler)
   extends Observer[U] { self =>
-
-  require(mergeBatchSize > 0, "mergeBatchSize must be strictly positive")
 
   private[this] val lock = SpinLock()
   private[this] val buffer = BufferedObserver(downstream, bufferPolicy)
