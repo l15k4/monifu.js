@@ -16,7 +16,10 @@
  
 package monifu.reactive
 
-import monifu.reactive.api.BufferPolicy.{OverflowTriggering, BackPressured, Unbounded}
+import monifu.reactive.Ack.Continue
+import monifu.reactive.BufferPolicy.{OverflowTriggering, BackPressured, Unbounded}
+import monifu.reactive.Notification.OnNext
+import monifu.reactive.subjects.BehaviorSubject
 
 import scala.concurrent.Future
 import scala.scalajs.test.JasmineTest
@@ -51,7 +54,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should unsafeMerge") {
-      expectInt(Observable.unit(1).map(x => Observable.unit(x + 2)).unsafeMerge.asFuture, 3, -1)
+      expectInt(Observable.unit(1).map(x => Observable.unit(x + 2)).merge(bufferPolicy=Unbounded).asFuture, 3, -1)
     }
 
     it("should take") {
@@ -115,29 +118,31 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     it("should flatScan") {
       expectInt(Observable.unit(1).flatScan(2)((a,b) => Future(a+b)).foldLeft(0)(_+_).asFuture, 3, -1)
     }
-// TODO OGG: check with Alex on how to translate from ScalaTest to Jasmine these remaining tests
-//
-//    it("should doOnComplete") {
-//      val latch = new CountDownLatch(1)
-//      Observable.unit(1).doOnComplete(latch.countDown()).subscribe()
-//      assert(latch.await(2, TimeUnit.SECONDS), "latch.await should have succeeded")
-//    }
-//
-//    it("should doWork") {
-//      var seen = 0
-//      val latch = new CountDownLatch(1)
-//      Observable.unit(1).doWork(x => seen = x).doOnComplete(latch.countDown()).subscribe()
-//      assert(latch.await(2, TimeUnit.SECONDS), "latch.await should have succeeded")
-//      assert(seen === 1)
-//    }
-//
-//    it("should doOnStart") {
-//      var seen = 0
-//      val latch = new CountDownLatch(1)
-//      Observable.unit(1).doOnStart(x => seen = x).doOnComplete(latch.countDown()).subscribe()
-//      assert(latch.await(2, TimeUnit.SECONDS), "latch.await should have succeeded")
-//      assert(seen === 1)
-//    }
+
+    it("should doOnComplete") {
+      var completed = false
+      Observable.unit(1).doOnComplete{completed = true}.subscribe()
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+    }
+
+    it("should doWork") {
+      var seen = 0
+      var completed = false
+      Observable.unit(1).doWork(x => seen = x).doOnComplete{completed=true}.subscribe()
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      expect(seen).toBe(1)
+    }
+
+    it("should doOnStart") {
+      var seen = 0
+      var completed = false
+      Observable.unit(1).doOnStart(x => seen = x).doOnComplete{completed=true}.subscribe()
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      expect(seen).toBe(1)
+    }
 
     it("should find") {
       expectInt(Observable.unit(1).find(_ == 1).asFuture, 1, -1)
@@ -146,43 +151,41 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should exists") {
-      expectBoolean(Observable.unit(1).exists(_ == 1).asFuture, true, false)
+      expectBoolean(Observable.unit(1).exists(_ == 1).asFuture, expected = true, default = false)
 
-      expectBoolean(Observable.unit(1).exists(_ == 2).asFuture, false, true)
+      expectBoolean(Observable.unit(1).exists(_ == 2).asFuture, expected = false, default = true)
     }
 
     it("should forAll") {
-      expectBoolean(Observable.unit(1).forAll(_ == 1).asFuture, true, false)
+      expectBoolean(Observable.unit(1).forAll(_ == 1).asFuture, expected = true, default = false)
 
-      expectBoolean(Observable.unit(1).forAll(_ == 2).asFuture, false, true)
+      expectBoolean(Observable.unit(1).forAll(_ == 2).asFuture, expected = false, default = true)
     }
 
     it("should complete") {
       expectInt(Observable.unit(1).complete.asFuture, -1, -1)
     }
 
-//    it("should error") {
-//      val f = Observable.unit(1).map(_ => throw new RuntimeException("dummy")).error.asFuture
-//      val ex = Await.result(f, 2.seconds)
-//      assert(ex.isDefined && ex.get.getMessage == "dummy", s"exception test failed, $ex returned")
-//    }
-//
-//    it("should endWithError") {
-//      var seen = 0
-//      val latch = new CountDownLatch(1)
-//
-//      Observable.unit(1).endWithError(new RuntimeException("dummy")).subscribe(
-//        elem => { seen = elem; Continue },
-//        exception => {
-//          assert(exception.getMessage === "dummy")
-//          latch.countDown()
-//        }
-//      )
-//
-//      assert(latch.await(2, TimeUnit.SECONDS), "latch.await should have succeeded")
-//      assert(seen === 1)
-//    }
-//
+    it("should error") {
+      val f = Observable.unit(1).map(_ => throw new RuntimeException("dummy")).error.asFuture
+      jasmine.Clock.tick(1)
+      expect(f.value.get.get.get.getMessage).toBe("dummy")
+    }
+
+    it("should endWithError") {
+      var seen = 0
+      var completed = false
+      Observable.unit(1).endWithError(new RuntimeException("dummy")).doOnComplete{completed=true}.subscribe(
+        elem => { seen = elem; Continue },
+        exception => {
+          expect(exception.getMessage).toBe("dummy")
+        }
+      )
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      expect(seen).toBe(1)
+    }
+
     it("should +:") {
       expectSeqOfInt((1 +: Observable.unit(2)).foldLeft(Seq.empty[Int])(_:+_).asFuture, Seq(1,2), Seq.empty)
     }
@@ -196,7 +199,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should endWith") {
-      expectSeqOfInt((Observable.unit(1).endWith(2,3,4)).foldLeft(Seq.empty[Int])(_:+_).asFuture, Seq(1,2,3,4), Seq.empty)
+      expectSeqOfInt(Observable.unit(1).endWith(2, 3, 4).foldLeft(Seq.empty[Int])(_:+_).asFuture, Seq(1,2,3,4), Seq.empty)
     }
 
     it("should ++") {
@@ -225,8 +228,8 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       val f = Observable.unit(1).zip(Observable.unit(2)).asFuture
       jasmine.Clock.tick(1)
       val actual = f.value.get.get.get
-      expect(actual._1).toEqual(1)
-      expect(actual._2).toEqual(2)
+      expect(actual._1).toBe(1)
+      expect(actual._2).toBe(2)
     }
 
     it("should max") {
@@ -239,8 +242,8 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       jasmine.Clock.tick(1)
       val actual = f.value.get.get.get
       val expected = Person(32)
-      expect(actual.hashCode()).toEqual(expected.hashCode())
-      expect(actual.age).toEqual(expected.age)
+      expect(actual.hashCode()).toBe(expected.hashCode())
+      expect(actual.age).toBe(expected.age)
     }
 
     it("should min") {
@@ -253,8 +256,8 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       jasmine.Clock.tick(1)
       val actual = f.value.get.get.get
       val expected = Person(32)
-      expect(actual.hashCode()).toEqual(expected.hashCode())
-      expect(actual.age).toEqual(expected.age)
+      expect(actual.hashCode()).toBe(expected.hashCode())
+      expect(actual.age).toBe(expected.age)
     }
 
     it("should sum") {
@@ -289,87 +292,96 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       expectInt(Observable.unit(1).subscribeOn(global).asFuture, 1, -1)
     }
 
-//    it("should materialize") {
-//      val f = Observable.unit(1).materialize.foldLeft(Seq.empty[Notification[Int]])(_:+_).asFuture
-//      assert(Await.result(f, 5.seconds) === Some(Seq(OnNext(1), OnComplete)))
-//    }
+    it("should materialize") {
+      var completed = false
+      val f = Observable.unit(1).materialize.foldLeft(Seq.empty[Notification[Int]])(_:+_).doOnComplete{completed=true}.asFuture
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      val result = f.value.get.get.get
+      expect(result.size).toBe(2)
+      expect(result(0).asInstanceOf[OnNext[Int]].elem).toBe(1)
+    }
 
     it("should repeat") {
       expectInt(Observable.unit(1).repeat.take(1000).sum.asFuture, 1000, 1)
     }
 
-//    it("should multicast") {
-//      for (_ <- 0 until 1000) {
-//        var seen = 0
-//        val completed = new CountDownLatch(1)
-//
-//        val connectable = Observable.unit(1).multicast(BehaviorSubject(1))
-//        connectable.doOnComplete(completed.countDown()).sum.foreach(x => seen = x)
-//
-//        assert(seen === 0)
-//        assert(completed.getCount === 1)
-//
-//        connectable.connect()
-//        assert(completed.await(1, TimeUnit.SECONDS), "completed.await should have succeeded")
-//        assert(seen === 2)
-//      }
-//    }
-//
-//    it("should publish") {
-//      var seen = 0
-//      val completed = new CountDownLatch(1)
-//
-//      val connectable = Observable.unit(1).publish()
-//      connectable.doOnComplete(completed.countDown()).sum.foreach(x => seen = x)
-//
-//      assert(seen === 0)
-//      assert(!completed.await(100, TimeUnit.MILLISECONDS), "connectable.await should have failed")
-//
-//      connectable.connect()
-//      assert(completed.await(10, TimeUnit.SECONDS), "completed.await should have succeeded")
-//      assert(seen === 1)
-//    }
-//
-//    it("should behavior") {
-//      var seen = 0
-//      val completed = new CountDownLatch(1)
-//
-//      val connectable = Observable.unit(1).behavior(1)
-//      connectable.doOnComplete(completed.countDown()).sum.foreach(x => seen = x)
-//
-//      assert(seen === 0)
-//      assert(!completed.await(100, TimeUnit.MILLISECONDS), "connectable.await should have failed")
-//
-//      connectable.connect()
-//      assert(completed.await(10, TimeUnit.SECONDS), "completed.await should have succeeded")
-//      assert(seen === 2)
-//    }
-//
-//    it("should replay") {
-//      var seen = 0
-//      val completed = new CountDownLatch(1)
-//
-//      val connectable = Observable.unit(1).replay()
-//      connectable.connect()
-//
-//      connectable.doOnComplete(completed.countDown()).sum.foreach(x => seen = x)
-//      assert(completed.await(10, TimeUnit.SECONDS), "completed.await should have succeeded")
-//      assert(seen === 1)
-//    }
+    it("should multicast") {
+      for (_ <- 0 until 1000) {
+        var seen = 0
+        var completed = false
+
+        val connectable = Observable.unit(1).multicast(BehaviorSubject(1))
+        connectable.doOnComplete{completed = true}.sum.foreach(x => seen = x)
+
+        expect(completed).toBe(false)
+        expect(seen).toBe(0)
+
+        connectable.connect()
+        jasmine.Clock.tick(1)
+        expect(completed).toBe(true)
+        expect(seen).toBe(2)
+      }
+    }
+
+    it("should publish") {
+      var seen = 0
+      var completed = false
+
+      val connectable = Observable.unit(1).publish()
+      connectable.doOnComplete{completed = true}.sum.foreach(x => seen = x)
+
+      expect(completed).toBe(false)
+      expect(seen).toBe(0)
+
+      connectable.connect()
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      expect(seen).toBe(1)
+    }
+
+    it("should behavior") {
+      var seen = 0
+      var completed = false
+
+      val connectable = Observable.unit(1).behavior(1)
+      connectable.doOnComplete{completed = true}.sum.foreach(x => seen = x)
+
+      expect(seen).toBe(0)
+      expect(completed).toBe(false)
+
+      connectable.connect()
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      expect(seen).toBe(2)
+    }
+
+    it("should replay") {
+      var seen = 0
+      var completed = false
+
+      val connectable = Observable.unit(1).replay()
+      connectable.connect()
+
+      connectable.doOnComplete{completed = true}.sum.foreach(x => seen = x)
+      jasmine.Clock.tick(1)
+      expect(completed).toBe(true)
+      expect(seen).toBe(1)
+    }
   }
 
   def expectInt(f: Future[Option[Int]], expected: Int, default: Int) {
     jasmine.Clock.tick(1)
-    expect(f.value.get.get.getOrElse(default)).toEqual(expected)
+    expect(f.value.get.get.getOrElse(default)).toBe(expected)
   }
 
   def expectSeqOfInt(f: Future[Option[Seq[Int]]], expected: Seq[Int], default: Seq[Int]) {
     jasmine.Clock.tick(1)
     val result = f.value.get.get.getOrElse(default)
-    expect(result.size).toEqual(expected.size)
+    expect(result.size).toBe(expected.size)
     val expectedInt = expected.iterator
     for (actualInt <- result) {
-      expect(actualInt).toEqual(expectedInt.next())
+      expect(actualInt).toBe(expectedInt.next())
     }
   }
 
