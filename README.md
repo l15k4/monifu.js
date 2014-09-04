@@ -62,18 +62,18 @@ for the published packages is version 6 (see
 [faq entry](https://github.com/monifu/monifu/wiki/Frequently-Asked-Questions#what-javajdk-version-is-required)).
 
 - Current stable release is: `0.13.0`
-- In-development release: `0.14.0.M1`
+- In-development release: `0.14.0.M2`
 
 ### For the JVM
 
 ```scala
-libraryDependencies += "org.monifu" %% "monifu" % "0.14.0.M1"
+libraryDependencies += "org.monifu" %% "monifu" % "0.14.0.M2"
 ```
 
 ### For targeting Javascript runtimes with Scala.js
 
 ```scala
-libraryDependencies += "org.monifu" %% "monifu-js" % "0.14.0.M1"
+libraryDependencies += "org.monifu" %% "monifu-js" % "0.14.0.M2"
 ```
 
 ## License
