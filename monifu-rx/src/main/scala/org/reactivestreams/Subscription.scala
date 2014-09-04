@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package monifu.reactive.streams
+package org.reactivestreams
 
 /**
  * Represents a one-to-one lifecycle of a [[Subscriber]] subscribing to a [[Publisher]]
@@ -46,7 +46,7 @@ trait Subscription {
    *          [[Publisher]] that it may send an infinite number of events, until the subscription
    *          gets cancelled or the stream is complete.
    */
-  def request(n: Int): Unit
+  def request(n: Long): Unit
 
   /**
    * Request the [[Publisher]] to stop sending data and clean up resources.

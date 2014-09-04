@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-package monifu.reactive.streams
-
-import monifu.reactive.Observer
-import monifu.reactive.observers._
-
-import scala.concurrent.ExecutionContext
+package org.reactivestreams
 
 /**
  * Mirrors the `Subscriber` interface from the
@@ -32,18 +27,3 @@ trait Subscriber[T] {
   def onComplete(): Unit
 }
 
-object Subscriber {
-  /**
-   * Given an [[Observer]], builds a [[Subscriber]] instance as defined by the
-   * [[http://www.reactive-streams.org/ Reactive Streams]] specification.
-   */
-  def from[T](observer: Observer[T], requestSize: Int = 128)(implicit ec: ExecutionContext): Subscriber[T] = {
-    observer match {
-      case sync: SynchronousObserver[_] =>
-        val inst = sync.asInstanceOf[SynchronousObserver[T]]
-        SynchronousObserverAsSubscriber(inst, requestSize)
-      case async =>
-        ObserverAsSubscriber(async, requestSize)
-    }
-  }
-}

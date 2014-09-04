@@ -20,6 +20,7 @@ import monifu.reactive.Ack.{Cancel, Continue}
 import monifu.reactive.Observer
 import monifu.reactive.observers.{SynchronousBufferedObserver, SynchronousObserver}
 import scala.concurrent.ExecutionContext
+import org.reactivestreams.{Subscriber, Subscription}
 
 /**
  * Wraps a [[monifu.reactive.Observer Observer]] instance into an

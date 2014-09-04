@@ -25,8 +25,8 @@ import monifu.reactive.BufferPolicy.{BackPressured, OverflowTriggering, Unbounde
 import monifu.reactive.Notification.{OnComplete, OnError, OnNext}
 import monifu.reactive.internals._
 import monifu.reactive.observers._
-import monifu.reactive.streams.Publisher
 import monifu.reactive.subjects.{BehaviorSubject, PublishSubject, ReplaySubject}
+import org.reactivestreams.{Subscriber, Publisher}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -112,6 +112,16 @@ trait Observable[+T] { self =>
    */
   final def subscribe(nextFn: T => Future[Ack]): Cancelable =
     subscribe(nextFn, error => { scheduler.reportFailure(error); Cancel }, () => Cancel)
+
+  /**
+   * Wraps this Observable into an `org.reactivestreams.Publisher`.
+   */
+  def publisher[U >: T]: Publisher[U] =
+    new Publisher[U] {
+      def subscribe(s: Subscriber[_ >: U]): Unit = {
+        subscribeFn(SafeObserver(Observer.from(s)))
+      }
+    }
 
   /**
    * Returns an Observable that applies the given function to each item emitted by an
@@ -760,6 +770,27 @@ trait Observable[+T] { self =>
       })
     }
 
+  def count(): Observable[Long] =
+    Observable.create { observer =>
+      subscribeFn(new Observer[T] {
+        private[this] var count = 0l
+
+        def onNext(elem: T): Future[Ack] = {
+          count += 1
+          Continue
+        }
+
+        def onComplete() = {
+          observer.onNext(count)
+          observer.onComplete()
+        }
+
+        def onError(ex: Throwable) = {
+          observer.onError(ex)
+        }
+      })
+    }
+
   /**
    * Periodically gather items emitted by an Observable into bundles and emit
    * these bundles rather than emitting the items one at a time.
@@ -814,7 +845,7 @@ trait Observable[+T] { self =>
    */
   def buffer(timespan: FiniteDuration): Observable[Seq[T]] =
     Observable.create { observer =>
-      subscribeFn(new Observer[T] {
+      subscribeFn(new SynchronousObserver[T] {
         private[this] val lock = SpinLock()
         private[this] var queue = ArrayBuffer.empty[T]
         private[this] var isDone = false
@@ -823,16 +854,27 @@ trait Observable[+T] { self =>
           scheduler.scheduleRecursive(timespan, timespan, { reschedule =>
             lock.enter {
               if (!isDone) {
-                observer.onNext(queue)
                 queue = ArrayBuffer.empty
-                reschedule()
+                for (ack <- observer.onNext(queue))
+                  ack match {
+                    case Continue =>
+                      reschedule()
+                    case Cancel =>
+                      lock.enter {
+                        isDone = true
+                      }
+                  }
               }
             }
           })
 
-        def onNext(elem: T): Future[Ack] = lock.enter {
-          queue.append(elem)
-          Continue
+        def onNext(elem: T): Ack = lock.enter {
+          if (!isDone) {
+            queue.append(elem)
+            Continue
+          }
+          else
+            Cancel
         }
 
         def onError(ex: Throwable): Unit = lock.enter {
@@ -2361,5 +2403,5 @@ object Observable {
    * Implicit conversion from Observable to Publisher.
    */
   implicit def ObservableIsPublisher[T](source: Observable[T]): Publisher[T] =
-    Publisher.from(source)
+    source.publisher
 }
