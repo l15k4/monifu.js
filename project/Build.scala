@@ -7,7 +7,7 @@ import sbtunidoc.Plugin._
 import sbtunidoc.Plugin.UnidocKeys._
 
 object Build extends SbtBuild {
-  val projectVersion = "0.14-SNAPSHOT"
+  val projectVersion = "0.14.0.M1"
 
   val sharedSettings = Defaults.defaultSettings ++ Seq(
     organization := "org.monifu",
@@ -86,7 +86,7 @@ object Build extends SbtBuild {
 
   // -- Actual Projects
 
-  lazy val monifuJS = Project(id="monifu", base = file("."), 
+  lazy val monifuJS = Project(id="monifu-js", base = file("."), 
     settings=sharedSettings ++ unidocSettings ++ Seq(
       scalacOptions in (ScalaUnidoc, sbtunidoc.Plugin.UnidocKeys.unidoc) ++=
         Opts.doc.sourceUrl(s"https://github.com/monifu/monifu.js/tree/v$projectVersion/monifu€{FILE_PATH}.scala"),
@@ -100,7 +100,7 @@ object Build extends SbtBuild {
     .dependsOn(monifuCoreJS, monifuRxJS).aggregate(monifuCoreJS, monifuRxJS)
 
   lazy val monifuCoreJS = Project(
-    id = "monifu-core",
+    id = "monifu-core-js",
     base = file("monifu-core"),
     settings = sharedSettings ++ scalaJSSettings ++ Seq(
       libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-reflect" % _ % "compile"),
@@ -111,7 +111,7 @@ object Build extends SbtBuild {
   )
 
   lazy val monifuRxJS = Project(
-    id = "monifu-rx",
+    id = "monifu-rx-js",
     base = file("monifu-rx"),
     settings = sharedSettings ++ scalaJSSettings ++ Seq(
       libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-reflect" % _ % "compile"),

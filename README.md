@@ -55,7 +55,7 @@ The packages are published on Maven Central.
 Compiled for Scala 2.10 and 2.11 for the latest Scala.js (`0.5.0`). 
 
 ```scala
-libraryDependencies += "org.monifu" %% "monifu-js" % "0.13.0"
+libraryDependencies += "org.monifu" %% "monifu-js" % "0.14.0.M1"
 ```
 
 ## License
