@@ -115,6 +115,12 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       expectSeqOfInt(Observable.unit(1).buffer(100.millis).asFuture, Seq(1), Seq.empty)
     }
 
+    it("should bufferWithTimeout") {
+      val future = Observable.unit(1).bufferWithTimeout(100.millis).asFuture
+      jasmine.Clock.tick(150)
+      expectInt(future, 1, -1)
+    }
+
     it("should foldLeft") {
       expectInt(Observable.unit(1).foldLeft(1)(_+_).asFuture, 2, -1)
     }
