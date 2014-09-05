@@ -72,7 +72,7 @@ trait Observable[+T] { self =>
   /**
    * Creates the subscription that eventually starts the stream.
    *
-   * This function is "unsafe" to call because it does protect the calls to the
+   * This function is "unsafe" to call because it does not protect the calls to the
    * given [[Observer]] implementation in regards to unexpected exceptions that
    * violate the contract, therefore the given instance must respect its contract
    * and not throw any exceptions when the observable calls `onNext`,
