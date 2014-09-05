@@ -21,6 +21,8 @@ import monifu.reactive.BufferPolicy.{OverflowTriggering, BackPressured, Unbounde
 import monifu.reactive.Notification.OnNext
 import monifu.reactive.subjects.BehaviorSubject
 
+import concurrent.duration._
+
 import scala.concurrent.Future
 import scala.scalajs.test.JasmineTest
 
@@ -110,7 +112,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should buffer(timespan)") {
-      expectSeqOfInt(Observable.unit(1).buffer(200).asFuture, Seq(1), Seq.empty)
+      expectSeqOfInt(Observable.unit(1).buffer(100.millis).asFuture, Seq(1), Seq.empty)
     }
 
     it("should foldLeft") {
