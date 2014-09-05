@@ -692,18 +692,24 @@ trait Observable[+T] { self =>
           if (done) {
             Cancel
           } else {
-            observer.onNext(elem)
-            Continue
+            observer.onNext(elem).onCancel {
+              done = true
+            }
           }
         }
 
         def onError(ex: Throwable) {
-          observer.onError(ex)
+          if (!done) {
+            done = true
+            observer.onError(ex)
+          }
         }
 
         def onComplete() {
-          observer.onComplete()
-          done = true
+          if (!done) {
+            done = true
+            observer.onComplete()
+          }
         }
       })
 
@@ -718,11 +724,17 @@ trait Observable[+T] { self =>
         }
 
         def onError(ex: Throwable) {
-          observer.onError(ex)
+          if (!done) {
+            done = true
+            observer.onError(ex)
+          }
         }
 
         def onComplete() {
-          observer.onComplete()
+          if (!done) {
+            done = true
+            observer.onComplete()
+          }
         }
       })
     }
