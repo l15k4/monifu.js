@@ -90,13 +90,37 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should takeUntil") {
-      val first = Observable.unit(1)
-      jasmine.Clock.tick(1)
-
+      /* Second observable produces a value before the first one. */
+      val first = Observable.timer(100.millis, 1)
       val second = Observable.unit(2)
-      jasmine.Clock.tick(1)
+      val obs1 = first.takeUntil(second).asFuture
 
-      expectInt(first.takeUntil(second).asFuture, 1, -1)
+      jasmine.Clock.tick(101)
+      expectNone(obs1)
+
+      /* First observable produces a value before the second one. */
+      val first2 = Observable.timer(50.millis, 1)
+      val second2 = Observable.timer(100.millis, 2)
+      val obs2 = first2.takeUntil(second2).asFuture
+
+      jasmine.Clock.tick(101)
+      expectInt(obs2, 1, -1)
+
+      /* Repeatedly emit an element every 1 ms on the first observable.
+       * It is supposed to be interrupted after 5 ms as the second
+       * observable produces an element.
+       */
+      val first3 = Observable.timer(100.millis, 1.milli, 1)
+      val second3 = Observable.timer(105.millis, 2)
+      val obs3 = first3.takeUntil(second3).reduce(_ + _).asFuture
+
+      jasmine.Clock.tick(100)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      expectInt(obs3, 5, -1)
     }
 
     it("should dropWhile") {
@@ -406,5 +430,10 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
   def expectBoolean(f: Future[Option[Boolean]], expected: Boolean, default: Boolean) {
     jasmine.Clock.tick(1)
     expect(f.value.get.get.getOrElse(default)).toBe(expected)
+  }
+
+  def expectNone[T](f: Future[Option[T]]) {
+    jasmine.Clock.tick(1)
+    expect(f.value.get.get.isDefined).toBe(false)
   }
 }
