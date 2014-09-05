@@ -964,11 +964,9 @@ trait Observable[+T] { self =>
           if (!isDone) {
             if (queue.nonEmpty) {
               observer.onNext(queue)
-              observer.onComplete()
             }
-            else
-              observer.onComplete()
 
+            observer.onComplete()
             isDone = true
             queue = null
             task.cancel()
