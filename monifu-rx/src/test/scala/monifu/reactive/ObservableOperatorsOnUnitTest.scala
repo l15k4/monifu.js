@@ -117,7 +117,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
 
     it("should bufferWithTimeout") {
       val future = Observable.unit(1).bufferWithTimeout(100.millis).asFuture
-      jasmine.Clock.tick(150)
+      jasmine.Clock.tick(100)
       expectInt(future, 1, -1)
     }
 

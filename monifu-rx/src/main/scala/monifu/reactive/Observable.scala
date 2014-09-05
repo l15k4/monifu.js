@@ -1113,16 +1113,15 @@ trait Observable[+T] { self =>
    * the timeout expires, these elements are emitted and the Observer is marked
    * as complete.
    */
-  def bufferWithTimeout(timeout: FiniteDuration)(implicit scheduler: Scheduler): Observable[T] =
+  def bufferWithTimeout(timeout: FiniteDuration): Observable[T] =
     Observable.create { observer =>
       subscribeFn(new Observer[T] {
         private[this] var buffer = ArrayBuffer.empty[T]
 
         scheduler.scheduleOnce(timeout, {
           if (buffer != null) {
-            buffer.foreach(cur => observer.onNext(cur))
+            Observable.from(buffer).unsafeSubscribe(observer)
             buffer = null
-            observer.onComplete()
           }
         })
 
