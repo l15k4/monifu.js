@@ -99,7 +99,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       expectSeqOfInt(Observable.unit(1).buffer(2).asFuture, Seq(1), Seq.empty)
     }
 
-    it("should buffer(timestamp)") {
+    it("should buffer(timespan)") {
       expectSeqOfInt(Observable.unit(1).buffer(200).asFuture, Seq(1), Seq.empty)
     }
 
