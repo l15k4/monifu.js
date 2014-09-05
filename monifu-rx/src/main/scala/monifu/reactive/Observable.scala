@@ -473,7 +473,7 @@ trait Observable[+T] { self =>
                 lock.enter {
                   task.cancel()
                   isDone = true
-                }                
+                }
               }
             else
               Cancel
@@ -484,7 +484,7 @@ trait Observable[+T] { self =>
             if (!isDone) {
               isDone = true
               observer.onError(ex)
-            }            
+            }
           }
 
         def onComplete(): Unit =
@@ -680,6 +680,54 @@ trait Observable[+T] { self =>
     }
 
   /**
+   * Returns the values from the source Observable until the other
+   * Observable produces a value.
+   */
+  def takeUntil[U](other: Observable[U]): Observable[T] =
+    Observable.create { observer =>
+      var done = false
+
+      unsafeSubscribe(new Observer[T] {
+        def onNext(elem: T) = {
+          if (done) {
+            Cancel
+          } else {
+            observer.onNext(elem)
+            Continue
+          }
+        }
+
+        def onError(ex: Throwable) {
+          observer.onError(ex)
+        }
+
+        def onComplete() {
+          observer.onComplete()
+          done = true
+        }
+      })
+
+      other.unsafeSubscribe(new Observer[U] {
+        def onNext(elem: U) = {
+          if (!done) {
+            done = true
+            observer.onComplete()
+          }
+
+          Cancel
+        }
+
+        def onError(ex: Throwable) {
+          observer.onError(ex)
+        }
+
+        def onComplete() {
+          observer.onComplete()
+        }
+      })
+    }
+
+  /**
    * Drops the longest prefix of elements that satisfy the given predicate
    * and returns a new Observable that emits the rest.
    */
@@ -794,7 +842,7 @@ trait Observable[+T] { self =>
   /**
    * Periodically gather items emitted by an Observable into bundles and emit
    * these bundles rather than emitting the items one at a time.
-   * 
+   *
    * @param count the bundle size
    */
   def buffer(count: Int): Observable[Seq[T]] =
@@ -1924,18 +1972,18 @@ trait Observable[+T] { self =>
         def onNext(elem: T): Future[Ack] = {
           ack = observer.onNext(OnNext(elem))
           ack
-        }          
+        }
 
-        def onError(ex: Throwable): Unit = 
+        def onError(ex: Throwable): Unit =
           ack.onContinue {
             observer.onNext(OnError(ex))
-            observer.onComplete()            
+            observer.onComplete()
           }
 
-        def onComplete(): Unit = 
+        def onComplete(): Unit =
           ack.onContinue {
             observer.onNext(OnComplete)
-            observer.onComplete()            
+            observer.onComplete()
           }
       })
     }

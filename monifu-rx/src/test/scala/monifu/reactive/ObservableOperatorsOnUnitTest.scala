@@ -87,6 +87,16 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       expectInt(Observable.unit(1).takeWhile(_ % 2 == 0).asFuture, -1, -1)
     }
 
+    it("should takeUntil") {
+      val first = Observable.unit(1)
+      jasmine.Clock.tick(1)
+
+      val second = Observable.unit(2)
+      jasmine.Clock.tick(1)
+
+      expectInt(first.takeUntil(second).asFuture, 1, -1)
+    }
+
     it("should dropWhile") {
       expectInt(Observable.unit(1).dropWhile(_ == 2).asFuture, 1, -1)
 
