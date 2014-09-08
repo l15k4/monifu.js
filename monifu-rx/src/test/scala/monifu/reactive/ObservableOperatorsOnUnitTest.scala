@@ -21,6 +21,8 @@ import monifu.reactive.BufferPolicy.{OverflowTriggering, BackPressured, Unbounde
 import monifu.reactive.Notification.OnNext
 import monifu.reactive.subjects.BehaviorSubject
 
+import concurrent.duration._
+
 import scala.concurrent.Future
 import scala.scalajs.test.JasmineTest
 
@@ -87,6 +89,40 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
       expectInt(Observable.unit(1).takeWhile(_ % 2 == 0).asFuture, -1, -1)
     }
 
+    it("should takeUntil") {
+      /* Second observable produces a value before the first one. */
+      val first = Observable.timer(100.millis, 1)
+      val second = Observable.unit(2)
+      val obs1 = first.takeUntil(second).asFuture
+
+      jasmine.Clock.tick(101)
+      expectNone(obs1)
+
+      /* First observable produces a value before the second one. */
+      val first2 = Observable.timer(50.millis, 1)
+      val second2 = Observable.timer(100.millis, 2)
+      val obs2 = first2.takeUntil(second2).asFuture
+
+      jasmine.Clock.tick(101)
+      expectInt(obs2, 1, -1)
+
+      /* Repeatedly emit an element every 1 ms on the first observable.
+       * It is supposed to be interrupted after 5 ms as the second
+       * observable produces an element.
+       */
+      val first3 = Observable.timer(100.millis, 1.milli, 1)
+      val second3 = Observable.timer(105.millis, 2)
+      val obs3 = first3.takeUntil(second3).reduce(_ + _).asFuture
+
+      jasmine.Clock.tick(100)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      jasmine.Clock.tick(1)
+      expectInt(obs3, 5, -1)
+    }
+
     it("should dropWhile") {
       expectInt(Observable.unit(1).dropWhile(_ == 2).asFuture, 1, -1)
 
@@ -100,7 +136,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should buffer(timespan)") {
-      expectSeqOfInt(Observable.unit(1).buffer(200).asFuture, Seq(1), Seq.empty)
+      expectSeqOfInt(Observable.unit(1).buffer(100.millis).asFuture, Seq(1), Seq.empty)
     }
 
     it("should foldLeft") {
@@ -388,5 +424,10 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
   def expectBoolean(f: Future[Option[Boolean]], expected: Boolean, default: Boolean) {
     jasmine.Clock.tick(1)
     expect(f.value.get.get.getOrElse(default)).toBe(expected)
+  }
+
+  def expectNone[T](f: Future[Option[T]]) {
+    jasmine.Clock.tick(1)
+    expect(f.value.get.get.isDefined).toBe(false)
   }
 }

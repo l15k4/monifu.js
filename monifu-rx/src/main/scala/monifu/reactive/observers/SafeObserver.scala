@@ -24,7 +24,7 @@ import monifu.concurrent.Scheduler
 import monifu.reactive.Ack
 
 /**
- * A safe observer ensures too things:
+ * A safe observer ensures two things:
  *
  * - errors triggered by downstream observers are caught and streamed to `onError`,
  *   while the upstream gets an `Ack.Cancel`, to stop sending events

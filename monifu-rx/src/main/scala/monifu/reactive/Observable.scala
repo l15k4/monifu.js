@@ -72,7 +72,7 @@ trait Observable[+T] { self =>
   /**
    * Creates the subscription that eventually starts the stream.
    *
-   * This function is "unsafe" to call because it does protect the calls to the
+   * This function is "unsafe" to call because it does not protect the calls to the
    * given [[Observer]] implementation in regards to unexpected exceptions that
    * violate the contract, therefore the given instance must respect its contract
    * and not throw any exceptions when the observable calls `onNext`,
@@ -473,7 +473,7 @@ trait Observable[+T] { self =>
                 lock.enter {
                   task.cancel()
                   isDone = true
-                }                
+                }
               }
             else
               Cancel
@@ -484,7 +484,7 @@ trait Observable[+T] { self =>
             if (!isDone) {
               isDone = true
               observer.onError(ex)
-            }            
+            }
           }
 
         def onComplete(): Unit =
@@ -680,6 +680,66 @@ trait Observable[+T] { self =>
     }
 
   /**
+   * Returns the values from the source Observable until the other
+   * Observable produces a value.
+   */
+  def takeUntil[U](other: Observable[U]): Observable[T] =
+    Observable.create { observer =>
+      var done = false
+
+      unsafeSubscribe(new Observer[T] {
+        def onNext(elem: T) = {
+          if (done) {
+            Cancel
+          } else {
+            observer.onNext(elem).onCancel {
+              done = true
+            }
+          }
+        }
+
+        def onError(ex: Throwable) {
+          if (!done) {
+            done = true
+            observer.onError(ex)
+          }
+        }
+
+        def onComplete() {
+          if (!done) {
+            done = true
+            observer.onComplete()
+          }
+        }
+      })
+
+      other.unsafeSubscribe(new Observer[U] {
+        def onNext(elem: U) = {
+          if (!done) {
+            done = true
+            observer.onComplete()
+          }
+
+          Cancel
+        }
+
+        def onError(ex: Throwable) {
+          if (!done) {
+            done = true
+            observer.onError(ex)
+          }
+        }
+
+        def onComplete() {
+          if (!done) {
+            done = true
+            observer.onComplete()
+          }
+        }
+      })
+    }
+
+  /**
    * Drops the longest prefix of elements that satisfy the given predicate
    * and returns a new Observable that emits the rest.
    */
@@ -794,7 +854,7 @@ trait Observable[+T] { self =>
   /**
    * Periodically gather items emitted by an Observable into bundles and emit
    * these bundles rather than emitting the items one at a time.
-   * 
+   *
    * @param count the bundle size
    */
   def buffer(count: Int): Observable[Seq[T]] =
@@ -916,11 +976,9 @@ trait Observable[+T] { self =>
           if (!isDone) {
             if (queue.nonEmpty) {
               observer.onNext(queue)
-              observer.onComplete()
             }
-            else
-              observer.onComplete()
 
+            observer.onComplete()
             isDone = true
             queue = null
             task.cancel()
@@ -1924,18 +1982,18 @@ trait Observable[+T] { self =>
         def onNext(elem: T): Future[Ack] = {
           ack = observer.onNext(OnNext(elem))
           ack
-        }          
+        }
 
-        def onError(ex: Throwable): Unit = 
+        def onError(ex: Throwable): Unit =
           ack.onContinue {
             observer.onNext(OnError(ex))
-            observer.onComplete()            
+            observer.onComplete()
           }
 
-        def onComplete(): Unit = 
+        def onComplete(): Unit =
           ack.onContinue {
             observer.onNext(OnComplete)
-            observer.onComplete()            
+            observer.onComplete()
           }
       })
     }
