@@ -1109,43 +1109,6 @@ trait Observable[+T] { self =>
     }
 
   /**
-   * Buffers all elements that were produced during the specified timespan. When
-   * the timeout expires, these elements are emitted and the Observer is marked
-   * as complete.
-   */
-  def bufferWithTimeout(timeout: FiniteDuration): Observable[T] =
-    Observable.create { observer =>
-      subscribeFn(new Observer[T] {
-        private[this] var buffer = ArrayBuffer.empty[T]
-
-        scheduler.scheduleOnce(timeout, {
-          if (buffer != null) {
-            Observable.from(buffer).unsafeSubscribe(observer)
-            buffer = null
-          }
-        })
-
-        def onNext(elem: T) = {
-          if (buffer == null) {
-            Cancel
-          } else {
-            buffer.append(elem)
-            Continue
-          }
-        }
-
-        def onError(ex: Throwable) {
-          buffer = null
-          observer.onError(ex)
-        }
-
-        def onComplete() {
-          /* The completion is triggered when the delay expires. */
-        }
-      })
-    }
-
-  /**
    * Applies a binary operator to a start value and all elements of this Observable,
    * going left to right and returns a new Observable that emits only one item
    * before `onComplete`.
