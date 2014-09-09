@@ -14,14 +14,12 @@
  * limitations under the License.
  */
  
-package monifu.concurrent.schedulers
+package monifu.reactive
+
+import monifu.concurrent.Scheduler.Implicits.trampoline
+import monifu.reactive.Ack.{Cancel, Continue}
 
 import scala.scalajs.test.JasmineTest
-import scala.concurrent.Future
-import monifu.concurrent.Scheduler.Implicits.trampoline
-import concurrent.duration._
-import monifu.reactive._
-import monifu.reactive.Ack.{Continue, Cancel}
 
 
 object ObservableTest extends JasmineTest {
