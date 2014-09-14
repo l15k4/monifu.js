@@ -16,7 +16,8 @@
 
 package monifu.reactive
 
-import monifu.concurrent.Scheduler.Implicits.trampoline
+import monifu.concurrent.Implicits.scheduler
+import monifu.concurrent.TrampolinedExecutionContext.Implicits.executionContext
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 import scala.scalajs.test.JasmineTest

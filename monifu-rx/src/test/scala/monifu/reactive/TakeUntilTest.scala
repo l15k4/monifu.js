@@ -22,7 +22,7 @@ import monifu.reactive.subjects.PublishSubject
 
 import scala.scalajs.test.JasmineTest
 import scala.concurrent.duration._
-import monifu.concurrent.Scheduler.Implicits.global
+import monifu.concurrent.Implicits._
 
 
 object TakeUntilTest extends JasmineTest {

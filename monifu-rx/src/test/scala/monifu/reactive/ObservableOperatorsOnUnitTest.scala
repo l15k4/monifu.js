@@ -20,13 +20,11 @@ import monifu.reactive.Ack.Continue
 import monifu.reactive.BufferPolicy.{OverflowTriggering, BackPressured, Unbounded}
 import monifu.reactive.Notification.OnNext
 import monifu.reactive.subjects.BehaviorSubject
-
 import concurrent.duration._
-
 import scala.concurrent.Future
 import scala.scalajs.test.JasmineTest
+import monifu.concurrent.Implicits._
 
-import monifu.concurrent.Scheduler.Implicits.global
 
 /**
  * Tests involving the Observable operators when used on `Observable.unit`.
@@ -301,15 +299,15 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should observeOn") {
-      expectInt(Observable.unit(1).observeOn(global, Unbounded).sum.asFuture, 1, -1)
+      expectInt(Observable.unit(1).observeOn(executionContext, Unbounded).sum.asFuture, 1, -1)
 
-      expectInt(Observable.unit(1).observeOn(global, BackPressured(2)).sum.asFuture, 1, -1)
+      expectInt(Observable.unit(1).observeOn(executionContext, BackPressured(2)).sum.asFuture, 1, -1)
 
-      expectInt(Observable.unit(1).observeOn(global, BackPressured(1000)).sum.asFuture, 1, -1)
+      expectInt(Observable.unit(1).observeOn(executionContext, BackPressured(1000)).sum.asFuture, 1, -1)
 
-      expectInt(Observable.unit(1).observeOn(global, OverflowTriggering(2)).sum.asFuture, 1, -1)
+      expectInt(Observable.unit(1).observeOn(executionContext, OverflowTriggering(2)).sum.asFuture, 1, -1)
 
-      expectInt(Observable.unit(1).observeOn(global, OverflowTriggering(1000)).sum.asFuture, 1, -1)
+      expectInt(Observable.unit(1).observeOn(executionContext, OverflowTriggering(1000)).sum.asFuture, 1, -1)
     }
 
     it("should distinct") {
@@ -325,7 +323,7 @@ object ObservableOperatorsOnUnitTest extends JasmineTest {
     }
 
     it("should subscribeOn") {
-      expectInt(Observable.unit(1).subscribeOn(global).asFuture, 1, -1)
+      expectInt(Observable.unit(1).subscribeOn(executionContext).asFuture, 1, -1)
     }
 
     it("should materialize") {

@@ -16,11 +16,10 @@
 
 package monifu.reactive
 
-import monifu.concurrent.Scheduler.Implicits.global
+import monifu.concurrent.Implicits._
 import monifu.reactive.Ack.Continue
 import monifu.reactive.BufferPolicy.{BackPressured, OverflowTriggering}
 import monifu.reactive.subjects.PublishSubject
-
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 import scala.scalajs.test.JasmineTest

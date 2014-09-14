@@ -11,7 +11,6 @@ This repository is for the Scala.js version.
 [Reactive Extensions](https://github.com/monifu/monifu.js/wiki/Reactive-Extensions-(Rx))
 
 ```scala
-import monifu.concurrent.Scheduler.Implicits.global
 import monifu.reactive._
 
 // emits an auto-incremented number, every second
@@ -54,12 +53,8 @@ Release Notes:
 
 The packages are published on Maven Central.
 
-Compiled for Scala 2.10 and 2.11 for the latest Scala.js (`0.5.4`). 
-=======
 Compiled for Scala 2.10 and 2.11. Also cross-compiled to
-the latest Scala.js (at the moment Scala.js 0.5.4). The targeted JDK version
-for the published packages is version 6 (see 
-[faq entry](https://github.com/monifu/monifu/wiki/Frequently-Asked-Questions#what-javajdk-version-is-required)).
+the latest Scala.js (at the moment Scala.js 0.5.4).
 
 - Current stable release is: `0.13.0`
 - In-development release: `0.14.0.M4`

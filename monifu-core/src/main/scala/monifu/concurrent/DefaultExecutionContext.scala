@@ -14,26 +14,19 @@
  * limitations under the License.
  */
 
-package monifu.reactive
+package monifu.concurrent
 
-import monifu.concurrent.Implicits._
-import scala.scalajs.test.JasmineTest
+import scala.concurrent.ExecutionContext
+import scala.scalajs.js
 
-
-object MergeMapTest extends JasmineTest {
-  beforeEach {
-    jasmine.Clock.useMock()
+object DefaultExecutionContext extends ExecutionContext {
+  def execute(runnable: Runnable) = {
+    val lambda: js.Function = () =>
+      try { runnable.run() } catch { case t: Throwable => reportFailure(t) }
+    js.Dynamic.global.setTimeout(lambda, 0)
   }
 
-  describe("Observable.mergeMap") {
-    it("should work") {
-      val result2 =
-        Observable.from(0 until 100).filter(_ % 5 == 0)
-          .mergeMap(x => Observable.from(x until (x + 5)))
-          .foldLeft(0)(_ + _).asFuture
-
-      jasmine.Clock.tick(1)
-      expect(result2.value.get.get.get).toBe((0 until 100).sum)
-    }
+  def reportFailure(cause: Throwable): Unit = {
+    Console.err.println("Failure in async execution: " + cause)
   }
 }

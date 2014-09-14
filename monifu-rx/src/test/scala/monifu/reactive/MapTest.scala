@@ -16,7 +16,7 @@
 
 package monifu.reactive
 
-import monifu.concurrent.Scheduler.Implicits.trampoline
+import monifu.concurrent.Implicits._
 import monifu.reactive.Ack.{Cancel, Continue}
 import scala.scalajs.test.JasmineTest
 
