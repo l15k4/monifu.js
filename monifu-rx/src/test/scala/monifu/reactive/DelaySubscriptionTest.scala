@@ -1,23 +1,42 @@
+/*
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package monifu.reactive
 
-import monifu.concurrent.Scheduler.Implicits.global
-import org.scalatest.FunSpec
-import scala.concurrent.{TimeoutException, Promise, Await}
+import monifu.concurrent.Scheduler.Implicits.trampoline
+import scala.concurrent.Promise
 import scala.concurrent.duration._
+import scala.scalajs.test.JasmineTest
 
 
-class DelaySubscriptionTest extends FunSpec {
+object DelaySubscriptionTest extends JasmineTest {
+  beforeEach {
+    jasmine.Clock.useMock()
+  }
+
   describe("Observable.delaySubscription(timespan)") {
     it("should work") {
-      val now = System.currentTimeMillis()
       val f = Observable.repeat(1).take(100000)
         .delaySubscription(200.millis)
         .reduce(_ + _).asFuture
 
-      val r = Await.result(f, 5.seconds)
-      assert(r === Some(100000))
-      val delayed = System.currentTimeMillis() - now
-      assert(delayed >= 200, s"$delayed millis > 200 millis")
+      jasmine.Clock.tick(199)
+      expect(f.isCompleted).toBe(false)
+      jasmine.Clock.tick(1)
+      expect(f.isCompleted).toBe(true)
     }
   }
 
@@ -29,13 +48,13 @@ class DelaySubscriptionTest extends FunSpec {
         .delaySubscription(trigger.future)
         .reduce(_ + _).asFuture
 
-      intercept[TimeoutException] {
-        Await.result(f, 200.millis)
-      }
+      jasmine.Clock.tick(100)
+      expect(f.isCompleted).toBe(false)
 
       trigger.success(())
-      val r = Await.result(f, 5.seconds)
-      assert(r === Some(100000))
+      jasmine.Clock.tick(1)
+      expect(f.isCompleted).toBe(true)
+      expect(f.value.get.get.get).toBe(100000)
     }
 
     it("should trigger error") {
@@ -45,15 +64,10 @@ class DelaySubscriptionTest extends FunSpec {
         .delaySubscription(trigger.future)
         .reduce(_ + _).asFuture
 
-      intercept[TimeoutException] {
-        Await.result(f, 200.millis)
-      }
-
-      class DummyException extends RuntimeException
-      trigger.failure(new DummyException)
-      intercept[DummyException] {
-        Await.result(f, 5.seconds)
-      }
+      trigger.failure(new RuntimeException("DUMMY"))
+      jasmine.Clock.tick(1)
+      expect(f.isCompleted).toBe(true)
+      expect(f.value.get.failed.get.getMessage).toBe("DUMMY")
     }
   }
 }

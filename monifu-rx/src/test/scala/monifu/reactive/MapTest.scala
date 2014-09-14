@@ -13,21 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 package monifu.reactive
 
 import monifu.concurrent.Scheduler.Implicits.trampoline
 import monifu.reactive.Ack.{Cancel, Continue}
-
 import scala.scalajs.test.JasmineTest
 
 
-object ObservableTest extends JasmineTest {
+object MapTest extends JasmineTest {
   beforeEach {
     jasmine.Clock.useMock()
   }
 
-	describe("Observable.map") {
+  describe("Observable.map") {
     it("should work") {
       val f = Observable.from(0 until 10).map(x => x + 1).foldLeft(Seq.empty[Int])(_ :+ _).asFuture
       jasmine.Clock.tick(1)
@@ -63,18 +62,6 @@ object ObservableTest extends JasmineTest {
 
       jasmine.Clock.tick(1)
       expect(wasCompleted).toBe(true)
-    }
-  }
-
-  describe("Observable.mergeMap") {
-    it("should work") {
-      val result2 = 
-        Observable.from(0 until 100).filter(_ % 5 == 0)
-          .mergeMap(x => Observable.from(x until (x + 5)))
-          .foldLeft(0)(_ + _).asFuture
-
-      jasmine.Clock.tick(1)
-      expect(result2.value.get.get.get).toBe((0 until 100).sum)
     }
   }
 }
