@@ -7,14 +7,14 @@ import sbtunidoc.Plugin._
 import sbtunidoc.Plugin.UnidocKeys._
 
 object Build extends SbtBuild {
-  val projectVersion = "0.14.0.M3"
+  val projectVersion = "0.14.0.M4"
 
   val sharedSettings = Defaults.defaultSettings ++ Seq(
     organization := "org.monifu",
     version := projectVersion,
 
     scalaVersion := "2.11.2",
-    crossScalaVersions ++= Seq("2.10.4"),
+    crossScalaVersions ++= Seq("2.10.4", "2.11.2"),
 
     initialize := {
        val _ = initialize.value // run the previous initialization
