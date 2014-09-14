@@ -1445,6 +1445,35 @@ trait Observable[+T] { self =>
     }
 
   /**
+   * Hold an Observer's subscription request until the given `future` completes,
+   * before passing it on to the source Observable. If the given `future`
+   * completes in error, then the subscription is terminated with `onError`.
+   *
+   * @param future the `Future` that must complete in order for the
+   *               subscription to happen.
+   */
+  def delaySubscription(future: Future[_]): Observable[T] =
+    Observable.create { observer =>
+      future.onComplete {
+        case Success(_) =>
+          unsafeSubscribe(observer)
+        case Failure(ex) =>
+          observer.onError(ex)
+      }
+    }
+
+  /**
+   * Hold an Observer's subscription request for a specified
+   * amount of time before passing it on to the source Observable.
+   */
+  def delaySubscription(timespan: FiniteDuration): Observable[T] =
+    delaySubscription {
+      val p = Promise[Unit]()
+      scheduler.scheduleOnce(timespan, p.success(()))
+      p.future
+    }
+
+  /**
    * Applies a binary operator to a start value and all elements of this Observable,
    * going left to right and returns a new Observable that emits only one item
    * before `onComplete`.
