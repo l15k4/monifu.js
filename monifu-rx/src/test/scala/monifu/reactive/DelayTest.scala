@@ -19,6 +19,7 @@ package monifu.reactive
 import monifu.concurrent.Implicits._
 import monifu.reactive.Ack.Continue
 import monifu.reactive.BufferPolicy.{BackPressured, OverflowTriggering}
+import monifu.reactive.channels.PublishChannel
 import monifu.reactive.subjects.PublishSubject
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
@@ -47,6 +48,44 @@ object DelayTest extends JasmineTest {
         .delay(10.seconds).asFuture
       jasmine.Clock.tick(1)
       expect(f.value.get.failed.get.getMessage).toBe("DUMMY")
+    }
+
+    it("should be relative to the first event being emitted") {
+      val channel = PublishChannel[Int]()
+      val f = channel.delay(200.millis).asFuture
+
+      scheduler.scheduleOnce(200.millis, {
+        channel.pushNext(1)
+      })
+
+      jasmine.Clock.tick(200)
+      expect(f.isCompleted).toBe(false)
+
+      jasmine.Clock.tick(100)
+      expect(f.isCompleted).toBe(false)
+
+      jasmine.Clock.tick(100)
+      expect(f.isCompleted).toBe(true)
+      expect(f.value.get.get.get).toBe(1)
+    }
+
+    it("should be relative to onComplete if observable is empty") {
+      val channel = PublishChannel[Int]()
+      val f = channel.delay(200.millis).asFuture
+
+      scheduler.scheduleOnce(200.millis, {
+        channel.pushComplete()
+      })
+
+      jasmine.Clock.tick(200)
+      expect(f.isCompleted).toBe(false)
+
+      jasmine.Clock.tick(100)
+      expect(f.isCompleted).toBe(false)
+
+      jasmine.Clock.tick(100)
+      expect(f.isCompleted).toBe(true)
+      expect(f.value.get.get.isEmpty).toBe(true)
     }
   }
 
