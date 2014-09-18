@@ -27,7 +27,7 @@ import scala.concurrent.duration._
  */
 @implicitNotFound(
   "An implicit Scheduler could not be found, " +
-  "either instantiate one yourself or import monifu.concurrent.Scheduler.defaultScheduler")
+  "either instantiate one yourself or import monifu.concurrent.Implicits.scheduler")
 trait Scheduler {
   /**
    * Schedules a task to run in the future, after `initialDelay`.
