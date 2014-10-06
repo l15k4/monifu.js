@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +19,6 @@
  
 package monifu.concurrent.cancelables
 
-import monifu.concurrent.atomic.AtomicAny
-import scala.annotation.tailrec
 import monifu.concurrent.Cancelable
 
 
@@ -36,7 +37,7 @@ import monifu.concurrent.Cancelable
 final class SingleAssignmentCancelable private () extends BooleanCancelable {
   import State._
 
-  def isCanceled: Boolean = state.get match {
+  def isCanceled: Boolean = state match {
     case IsEmptyCanceled | IsCanceled =>
       true
     case _ =>
@@ -52,32 +53,26 @@ final class SingleAssignmentCancelable private () extends BooleanCancelable {
    * @throws IllegalStateException in case this cancelable has already been assigned
    */
   @throws(classOf[IllegalStateException])
-  @tailrec
-  def update(value: Cancelable): Unit = state.get match {
+  def update(value: Cancelable): Unit = state match {
     case Empty =>
-      if (!state.compareAndSet(Empty, IsNotCanceled(value)))
-        update(value)
+      state = IsNotCanceled(value)
     case IsEmptyCanceled =>
-      if (!state.compareAndSet(IsEmptyCanceled, IsCanceled))
-        update(value)
-      else
-        value.cancel()
+      state = IsCanceled
+      value.cancel()
     case IsCanceled | IsNotCanceled(_) =>
-      throw new IllegalStateException("Cannot assign to SingleAssignmentCancelable, as it was already assigned once")
+      throw new IllegalStateException(
+        "Cannot assign to SingleAssignmentCancelable, as it was already assigned once"
+      )
   }
 
-  @tailrec
-  def cancel(): Unit = state.get match {
+  def cancel(): Unit = state match {
     case Empty =>
-      if (!state.compareAndSet(Empty, IsEmptyCanceled))
-        cancel()
-    case old @ IsNotCanceled(s) =>
-      if (!state.compareAndSet(old, IsCanceled))
-        cancel()
-      else
-        s.cancel()
+      state = IsEmptyCanceled
+    case IsNotCanceled(cancelable) =>
+      state = IsCanceled
+      cancelable.cancel()
     case IsEmptyCanceled | IsCanceled =>
-    // do nothing
+      () // do nothing
   }
 
   /**
@@ -86,7 +81,7 @@ final class SingleAssignmentCancelable private () extends BooleanCancelable {
   def `:=`(value: Cancelable): Unit =
     update(value)
 
-  private[this] val state = AtomicAny(Empty : State)
+  private[this] var state = Empty : State
 
   private[this] sealed trait State
   private[this] object State {

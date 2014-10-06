@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,11 +19,15 @@
  
 package monifu.reactive.observers
 
-import monifu.reactive.Ack.{Cancel, Continue}
+import monifu.concurrent.Scheduler
+import monifu.concurrent.atomic.Atomic
+import monifu.reactive.Ack.Cancel
+import monifu.reactive.internals._
 import monifu.reactive.{Ack, Observer}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import scala.util.control.NonFatal
+
 
 /**
  * A safe observer ensures two things:
@@ -33,24 +40,16 @@ import scala.util.control.NonFatal
  *
  * This implementation doesn't address multi-threading concerns in any way.
  */
-final class SafeObserver[-T] private (observer: Observer[T])
-    (implicit ec: ExecutionContext)
+final class SafeObserver[-T] private (observer: Observer[T])(implicit s: Scheduler)
   extends Observer[T] {
 
-  private[this] var isDone = false
+  private[this] val isDone = Atomic(false)
 
   def onNext(elem: T): Future[Ack] = {
-    if (!isDone) {
+    if (!isDone()) {
       try {
-        val result = observer.onNext(elem)
-        if (result == Continue || result == Cancel || (result.isCompleted && result.value.get.isSuccess))
-          result
-        else
-          result.recoverWith {
-            case err =>
-              onError(err)
-              Cancel
-          }
+        observer.onNext(elem)
+          .onErrorCancelStream(observer, isDone)
       }
       catch {
         case NonFatal(ex) =>
@@ -63,26 +62,21 @@ final class SafeObserver[-T] private (observer: Observer[T])
   }
 
   def onError(ex: Throwable) = {
-    if (!isDone) {
-      isDone = true
+    if (isDone.compareAndSet(expect = false, update = true))
       try observer.onError(ex) catch {
         case NonFatal(err) =>
-          ec.reportFailure(err)
+          s.reportFailure(err)
       }
-    }
+    else
+      s.reportFailure(ex)
   }
 
   def onComplete() = {
-    if (!isDone) {
-      isDone = true
+    if (isDone.compareAndSet(expect = false, update = true))
       try observer.onComplete() catch {
         case NonFatal(err) =>
-          ec.reportFailure(err)
-          Cancel
+          s.reportFailure(err)
       }
-    }
-    else
-      Cancel
   }
 }
 
@@ -90,7 +84,7 @@ object SafeObserver {
   /**
    * Wraps an Observer instance into a SafeObserver.
    */
-  def apply[T](observer: Observer[T])(implicit ec: ExecutionContext): SafeObserver[T] =
+  def apply[T](observer: Observer[T])(implicit s: Scheduler): SafeObserver[T] =
     observer match {
       case ref: SafeObserver[_] => ref.asInstanceOf[SafeObserver[T]]
       case _ => new SafeObserver[T](observer)

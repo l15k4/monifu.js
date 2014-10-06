@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,19 +19,40 @@
  
 package monifu.concurrent
 
-import monifu.concurrent.cancelables.MultiAssignmentCancelable
-import monifu.concurrent.schedulers.AsyncScheduler
+
+import monifu.concurrent.cancelables.{MultiAssignmentCancelable, BooleanCancelable}
+import monifu.concurrent.schedulers.{TrampolineScheduler, AsyncScheduler}
+import monifu.concurrent.UncaughtExceptionReporter.LogExceptionsToStandardErr
+
 import scala.annotation.implicitNotFound
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
+import scala.concurrent.duration.FiniteDuration
+
 
 /**
- * A `Scheduler` is used for scheduling one-off or periodic tasks in the future.
+ * A Scheduler is an `scala.concurrent.ExecutionContext` that additionally can schedule
+ * the execution of units of work to run with a delay or periodically.
  */
 @implicitNotFound(
-  "An implicit Scheduler could not be found, " +
-  "either instantiate one yourself or import monifu.concurrent.Implicits.scheduler")
-trait Scheduler {
+  "Cannot find an implicit Scheduler, either " +
+  "import monifu.concurrent.Implicits.globalScheduler or use a custom one")
+trait Scheduler extends ExecutionContext with UncaughtExceptionReporter {
+  /**
+   * Schedules the given `action` for immediate execution.
+   *
+   * @return a [[Cancelable]] that can be used to cancel the task in case
+   *         it hasn't been executed yet.
+   */
+  def scheduleOnce(action: => Unit): Cancelable = {
+    val sub = BooleanCancelable()
+    execute(new Runnable {
+      def run(): Unit =
+        if (!sub.isCanceled)
+          action
+    })
+    sub
+  }
+
   /**
    * Schedules a task to run in the future, after `initialDelay`.
    *
@@ -45,12 +69,11 @@ trait Scheduler {
    *
    * @param initialDelay is the time to wait until the execution happens
    * @param action is the callback to be executed
-   * @param ec is the `ExecutionContext` on top of which the task will run
    *
    * @return a `Cancelable` that can be used to cancel the created task
    *         before execution.
    */
-  def scheduleOnce(initialDelay: FiniteDuration, action: => Unit)(implicit ec: ExecutionContext): Cancelable
+  def scheduleOnce(initialDelay: FiniteDuration, action: => Unit): Cancelable
 
   /**
    * Schedules a task for execution repeated with the given `delay` between
@@ -70,14 +93,11 @@ trait Scheduler {
    * @param initialDelay is the time to wait until the first execution happens
    * @param delay is the time to wait between 2 subsequent executions of the task
    * @param action is the callback to be executed
-   * @param ec is the `ExecutionContext` on top of which the task will run
    *
    * @return a cancelable that can be used to cancel the execution of
    *         this repeated task at any time.
    */
-  def scheduleRepeated(initialDelay: FiniteDuration, delay: FiniteDuration, action: => Unit)
-      (implicit ec: ExecutionContext): Cancelable = {
-
+  def scheduleRepeated(initialDelay: FiniteDuration, delay: FiniteDuration, action: => Unit): Cancelable = {
     scheduleRecursive(initialDelay, delay, { reschedule =>
       action
       reschedule()
@@ -110,13 +130,10 @@ trait Scheduler {
    * @param initialDelay is the time to wait until the first execution happens
    * @param delay is the time to wait between 2 subsequent executions of the task
    * @param action is the callback to be executed
-   * @param ec is the `ExecutionContext` on top of which the task will run
    *
    * @return a cancelable that can be used to cancel the task at any time.
    */
-  def scheduleRecursive(initialDelay: FiniteDuration, delay: FiniteDuration, action: (() => Unit) => Unit)
-      (implicit ec: ExecutionContext): Cancelable = {
-
+  def scheduleRecursive(initialDelay: FiniteDuration, delay: FiniteDuration, action: (() => Unit) => Unit): Cancelable = {
     val sub = MultiAssignmentCancelable()
     def reschedule(): Unit =
       sub() = scheduleOnce(delay, action(reschedule))
@@ -124,10 +141,35 @@ trait Scheduler {
     sub() = scheduleOnce(initialDelay, action(reschedule))
     sub
   }
+
+  /**
+   * Runs a block of code in this `ExecutionContext`.
+   */
+  def execute(runnable: Runnable): Unit
+
+  /**
+   * Reports that an asynchronous computation failed.
+   */
+  def reportFailure(t: Throwable): Unit
 }
 
 object Scheduler {
-  def apply(): Scheduler = AsyncScheduler
-  lazy val global: Scheduler = apply()
+  /**
+   * [[Scheduler]] builder.
+   *
+   * @param reporter is the [[UncaughtExceptionReporter]] that logs uncaught exceptions.
+   */
+  def apply(reporter: UncaughtExceptionReporter = LogExceptionsToStandardErr): Scheduler = {
+    AsyncScheduler(reporter)
+  }
+
+  /**
+   * Builds a [[monifu.concurrent.schedulers.TrampolineScheduler TrampolineScheduler]].
+   *
+   * @param reporter is the [[UncaughtExceptionReporter]] that logs uncaught exceptions.
+   */
+  def trampoline(reporter: UncaughtExceptionReporter = LogExceptionsToStandardErr): Scheduler = {
+    TrampolineScheduler(reporter)
+  }
 }
 

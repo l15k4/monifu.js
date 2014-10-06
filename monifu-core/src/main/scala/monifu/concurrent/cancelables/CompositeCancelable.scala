@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +19,8 @@
  
 package monifu.concurrent.cancelables
 
-import monifu.concurrent.atomic.{AtomicAny, Atomic}
 import monifu.concurrent.Cancelable
-import scala.annotation.tailrec
+import monifu.js.JSSet
 
 
 /**
@@ -84,47 +86,31 @@ object CompositeCancelable {
   }
 
   private[this] final class CompositeCancelableImpl extends CompositeCancelable {
-    def isCanceled =
-      state.get.isCanceled
+    private[this] var _isCanceled = false
+    private[this] var subscriptions = JSSet.empty[Cancelable]
 
-    @tailrec
+    def isCanceled = {
+      _isCanceled
+    }
+
     def cancel(): Unit = {
-      val oldState = state.get
-      if (!oldState.isCanceled)
-        if (!state.compareAndSet(oldState, State(Set.empty, isCanceled = true)))
-          cancel()
-        else
-          for (s <- oldState.subscriptions) s.cancel()
+      if (!_isCanceled) {
+        _isCanceled =  true
+        for (s <- subscriptions) s.cancel()
+        subscriptions = null
+      }
     }
 
-    @tailrec
     def add(s: Cancelable): Unit = {
-      val oldState = state.get
-      if (oldState.isCanceled)
+      if (_isCanceled)
         s.cancel()
-      else {
-        val newState = oldState.copy(subscriptions = oldState.subscriptions + s)
-        if (!state.compareAndSet(oldState, newState))
-          add(s)
-      }
+      else
+        subscriptions += s
     }
 
-    @tailrec
     def remove(s: Cancelable): Unit = {
-      val oldState = state.get
-      if (!oldState.isCanceled) {
-        val newState = oldState.copy(subscriptions = oldState.subscriptions - s)
-        if (!state.compareAndSet(oldState, newState))
-          remove(s)
-      }
+      if (!_isCanceled)
+        subscriptions -= s
     }
-
-    private[this] val state: AtomicAny[State] =
-      Atomic(State())
-
-    private[this] case class State(
-      subscriptions: Set[Cancelable] = Set.empty,
-      isCanceled: Boolean = false
-    )
   }
 }

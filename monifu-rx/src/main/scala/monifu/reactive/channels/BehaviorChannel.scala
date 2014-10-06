@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,20 +19,19 @@
  
 package monifu.reactive.channels
 
+import monifu.concurrent.Scheduler
 import monifu.concurrent.locks.SpinLock
 import monifu.reactive.BufferPolicy.Unbounded
 import monifu.reactive.observers.BufferedObserver
 import monifu.reactive.subjects.BehaviorSubject
 import monifu.reactive.{BufferPolicy, Channel, Observable, Observer}
 
-import scala.concurrent.ExecutionContext
-
 /**
  * A `BehaviorChannel` is a [[Channel]] that uses an underlying
  * [[monifu.reactive.subjects.BehaviorSubject BehaviorSubject]].
  */
 final class BehaviorChannel[T] private (initialValue: T, policy: BufferPolicy)
-    (implicit val context: ExecutionContext)
+    (implicit val scheduler: Scheduler)
   extends Channel[T] with Observable[T] {
 
   private[this] val lock = SpinLock()
@@ -78,7 +80,6 @@ final class BehaviorChannel[T] private (initialValue: T, policy: BufferPolicy)
 }
 
 object BehaviorChannel {
-  def apply[T](initial: T, bufferPolicy: BufferPolicy = Unbounded)
-      (implicit ec: ExecutionContext): BehaviorChannel[T] =
+  def apply[T](initial: T, bufferPolicy: BufferPolicy = Unbounded)(implicit s: Scheduler): BehaviorChannel[T] =
     new BehaviorChannel[T](initial, bufferPolicy)
 }

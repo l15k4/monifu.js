@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +19,6 @@
  
 package monifu.concurrent
 
-import monifu.concurrent.atomic.padded.Atomic
 
 /**
  * Represents an asynchronous computation whose execution can be canceled.
@@ -40,10 +42,11 @@ trait Cancelable {
 object Cancelable {
   def apply(cb: => Unit): Cancelable =
     new Cancelable {
-      private[this] val _isCanceled = Atomic(false)
+      private[this] var _isCanceled = false
 
       def cancel(): Unit =
-        if (_isCanceled.compareAndSet(expect=false, update=true)) {
+        if (!_isCanceled) {
+          _isCanceled = true
           cb
         }
     }

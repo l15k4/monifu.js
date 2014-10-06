@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,12 +19,13 @@
  
 package monifu.reactive.observers
 
+import monifu.concurrent.Scheduler
 import monifu.concurrent.locks.SpinLock
 import monifu.reactive.Ack.{Cancel, Continue}
 import monifu.reactive.internals.FutureAckExtensions
 import monifu.reactive.{Ack, Channel, Observable, Observer}
 import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{Future, Promise}
 
 
 /**
@@ -65,10 +69,9 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
  *   // NOTE: that onNext("c") never happens
  * }}}
  */
-final class ConnectableObserver[-T](underlying: Observer[T])(implicit context: ExecutionContext)
+final class ConnectableObserver[-T](observer: Observer[T])(implicit scheduler: Scheduler)
   extends Channel[T] with Observer[T] { self =>
 
-  private[this] val observer = SafeObserver(underlying)
   private[this] val lock = SpinLock()
 
   // MUST BE synchronized by `lock`, only available if isConnected == false
@@ -114,6 +117,7 @@ final class ConnectableObserver[-T](underlying: Observer[T])(implicit context: E
               connectedPromise.success(Continue)
               isConnected = true
               queue = null // gc relief
+
             case Cancel =>
               wasCanceled = true
               connectedPromise.success(Cancel)
@@ -141,14 +145,14 @@ final class ConnectableObserver[-T](underlying: Observer[T])(implicit context: E
 
           def onError(ex: Throwable): Unit = {
             if (scheduledError ne null)
-              context.reportFailure(ex)
+              scheduler.reportFailure(ex)
             else {
               scheduledDone = true
               scheduledError = ex
               if (bufferWasDrained.trySuccess(Cancel))
                 observer.onError(ex)
               else
-                context.reportFailure(ex)
+                scheduler.reportFailure(ex)
             }
           }
         })

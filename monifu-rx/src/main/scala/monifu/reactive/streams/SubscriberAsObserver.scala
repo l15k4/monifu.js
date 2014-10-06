@@ -1,11 +1,14 @@
 /*
  * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,15 +19,15 @@
 
 package monifu.reactive.streams
 
+import monifu.concurrent.Scheduler
 import monifu.concurrent.atomic.Atomic
-import monifu.concurrent.locks.SpinLock
 import monifu.reactive.Ack.{Cancel, Continue}
-import monifu.reactive.{Ack, Observer}
 import monifu.reactive.internals.FutureAckExtensions
-import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import monifu.reactive.{Ack, Observer}
 import org.reactivestreams.{Subscriber, Subscription}
 
+import scala.annotation.tailrec
+import scala.concurrent.{Future, Promise}
 
 /**
  * Wraps a [[Subscriber Subscriber]] instance that respects the
@@ -32,7 +35,8 @@ import org.reactivestreams.{Subscriber, Subscription}
  * into an [[monifu.reactive.Observer Observer]] instance that respect the `Observer`
  * contract.
  */
-final class SubscriberAsObserver[T] private (subscriber: Subscriber[T])(implicit ec: ExecutionContext)
+final class SubscriberAsObserver[T] private
+    (subscriber: Subscriber[T])(implicit s: Scheduler)
   extends Observer[T] {
 
   @volatile private[this] var isCanceled = false
@@ -40,8 +44,6 @@ final class SubscriberAsObserver[T] private (subscriber: Subscriber[T])(implicit
   private[this] val leftToPush = Atomic(0L)
   private[this] var ack = Continue : Future[Ack]
 
-  private[this] val lock = SpinLock()
-  // MUST BE synchronized by lock
   // MUST only be modified by the Subscription object
   private[this] var requestPromise = Promise[Ack]()
 
@@ -69,7 +71,7 @@ final class SubscriberAsObserver[T] private (subscriber: Subscriber[T])(implicit
       ack
     }
     else {
-      val result = lock.enter {
+      val result = {
         // race condition guard
         if (isCanceled) {
           Cancel
@@ -98,7 +100,7 @@ final class SubscriberAsObserver[T] private (subscriber: Subscriber[T])(implicit
 
   private[this] def createSubscription(): Subscription =
     new Subscription {
-      def request(n: Long): Unit = lock.enter {
+      def request(n: Long): Unit = {
         if (!isCanceled) {
           require(n > 0, "n must be strictly positive, according to the Reactive Streams contract")
 
@@ -110,7 +112,7 @@ final class SubscriberAsObserver[T] private (subscriber: Subscriber[T])(implicit
         }
       }
 
-      def cancel(): Unit = lock.enter {
+      def cancel(): Unit = {
         leftToPush lazySet 0
         isCanceled = true
         requestPromise.trySuccess(Cancel)
@@ -131,11 +133,9 @@ final class SubscriberAsObserver[T] private (subscriber: Subscriber[T])(implicit
     }
     else if (!isCanceled)
       ack.onContinue {
-        lock.enter {
-          if (!isCanceled) {
-            isCanceled = true
-            subscriber.onComplete()
-          }
+        if (!isCanceled) {
+          isCanceled = true
+          subscriber.onComplete()
         }
       }
   }
@@ -146,7 +146,7 @@ object SubscriberAsObserver {
    * Given a [[Subscriber]] as defined by the the [[http://www.reactive-streams.org/ Reactive Streams]]
    * specification, it builds an [[Observer]] instance compliant with the Monifu Rx implementation.
    */
-  def apply[T](subscriber: Subscriber[T])(implicit ec: ExecutionContext): SubscriberAsObserver[T] = {
+  def apply[T](subscriber: Subscriber[T])(implicit s: Scheduler): SubscriberAsObserver[T] = {
     new SubscriberAsObserver[T](subscriber)
   }
 }

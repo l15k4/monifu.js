@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +19,15 @@
  
 package monifu.reactive.observers
 
-import monifu.reactive.Observer
-import monifu.concurrent.internals.ConcurrentQueue
+import monifu.js.JSArrayQueue
 import monifu.reactive.Ack.{Cancel, Continue}
-import monifu.concurrent.atomic.padded.Atomic
-import scala.util.control.NonFatal
-import scala.util.Failure
-import scala.annotation.tailrec
-import monifu.reactive.{BufferOverflowException, BufferPolicy, Ack}
-import scala.concurrent.{ExecutionContext, Promise, Future}
 import monifu.reactive.BufferPolicy.{BackPressured, OverflowTriggering, Unbounded}
-import monifu.concurrent.locks.SpinLock
+import monifu.reactive.{Ack, BufferOverflowException, BufferPolicy, Observer}
+
+import scala.annotation.tailrec
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.Failure
+import scala.util.control.NonFatal
 
 
 /**
@@ -61,7 +62,9 @@ trait BufferedObserver[-T] extends Observer[T]
 
 
 object BufferedObserver {
-  def apply[T](observer: Observer[T], bufferPolicy: BufferPolicy = Unbounded)(implicit ec: ExecutionContext): BufferedObserver[T] = {
+  def apply[T](observer: Observer[T], bufferPolicy: BufferPolicy = Unbounded)
+      (implicit ec: ExecutionContext): BufferedObserver[T] = {
+
     bufferPolicy match {
       case Unbounded =>
         SynchronousBufferedObserver.unbounded(observer)
@@ -100,12 +103,13 @@ object BufferedObserver {
  * @param underlying is the underlying observer receiving the queued events
  * @param bufferSize is the maximum buffer size, or zero if unbounded
  */
-final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bufferSize: Int = 0)(implicit ec: ExecutionContext)
+final class SynchronousBufferedObserver[-T] private
+    (underlying: Observer[T], bufferSize: Int = 0)(implicit ec: ExecutionContext)
   extends SynchronousObserver[T] with BufferedObserver[T] {
 
   require(bufferSize >= 0, "bufferSize must be a positive number")
 
-  private[this] val queue = new ConcurrentQueue[T]()
+  private[this] val queue = JSArrayQueue.empty[T]
   // to be modified only in onError, before upstreamIsComplete
   private[this] var errorThrown: Throwable = null
   // to be modified only in onError / onComplete
@@ -113,12 +117,12 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
   // to be modified only by consumer
   @volatile private[this] var downstreamIsDone = false
   // for enforcing non-concurrent updates
-  private[this] val itemsToPush = Atomic(0)
+  private[this] var itemsToPush = 0
 
   def onNext(elem: T): Ack = {
     if (!upstreamIsComplete && !downstreamIsDone) {
       try {
-        queue.offer(elem)
+        queue.enqueue(elem)
         pushToConsumer()
         Continue
       }
@@ -147,15 +151,14 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
     }
   }
 
-  @tailrec
   private[this] def pushToConsumer(): Unit = {
-    val currentNr = itemsToPush.get
+    val currentNr = itemsToPush
 
     if (bufferSize == 0) {
       // unbounded branch
-      if (!itemsToPush.compareAndSet(currentNr, currentNr + 1))
-        pushToConsumer()
-      else if (currentNr == 0)
+      itemsToPush += 1
+
+      if (currentNr == 0)
         ec.execute(new Runnable {
           def run() = fastLoop(0)
         })
@@ -167,12 +170,14 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
           s"Downstream observer is too slow, buffer over capacity with a specified buffer size of $bufferSize and" +
             s" $currentNr events being left for push"))
       }
-      else if (!itemsToPush.compareAndSet(currentNr, currentNr + 1))
-        pushToConsumer()
-      else if (currentNr == 0)
-        ec.execute(new Runnable {
-          def run() = fastLoop(0)
-        })
+      else {
+        itemsToPush += 1
+
+        if (currentNr == 0)
+          ec.execute(new Runnable {
+            def run() = fastLoop(0)
+          })
+      }
     }
   }
 
@@ -185,9 +190,10 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
     if (!downstreamIsDone) {
       // errors have priority
       val hasError = errorThrown ne null
-      val next = queue.poll()
 
-      if (next != null && !hasError) {
+      if (queue.nonEmpty && !hasError) {
+        val next = queue.dequeue()
+
         underlying.onNext(next) match {
           case sync if sync.isCompleted =>
             sync match {
@@ -198,12 +204,12 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
               case done if done == Cancel || done.value.get == Cancel.IsSuccess =>
                 // ending loop
                 downstreamIsDone = true
-                itemsToPush.set(0)
+                itemsToPush = 0
 
               case error if error.value.get.isFailure =>
                 // ending loop
                 downstreamIsDone = true
-                itemsToPush.set(0)
+                itemsToPush = 0
                 underlying.onError(error.value.get.failed.get)
             }
 
@@ -216,18 +222,18 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
               case Cancel.IsSuccess =>
                 // ending loop
                 downstreamIsDone = true
-                itemsToPush.set(0)
+                itemsToPush = 0
 
               case Failure(ex) =>
                 // ending loop
                 downstreamIsDone = true
-                itemsToPush.set(0)
+                itemsToPush = 0
                 underlying.onError(ex)
 
               case other =>
                 // never happens, but to appease Scala's compiler
                 downstreamIsDone = true
-                itemsToPush.set(0)
+                itemsToPush = 0
                 underlying.onError(new MatchError(s"$other"))
             }
         }
@@ -236,14 +242,15 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
         // Race-condition check, but if upstreamIsComplete=true is visible, then the queue should be fully published
         // because there's a clear happens-before relationship between queue.offer() and upstreamIsComplete=true
         // NOTE: errors have priority, so in case of an error seen, then the loop is stopped
-        if (!hasError && queue.nonEmpty) {
+        if (!hasError && !queue.isEmpty) {
           fastLoop(processed)
         }
         else {
           // ending loop
           downstreamIsDone = true
-          itemsToPush.set(0)
+          itemsToPush = 0
           queue.clear() // for GC purposes
+
           if (errorThrown ne null)
             underlying.onError(errorThrown)
           else
@@ -251,10 +258,10 @@ final class SynchronousBufferedObserver[-T] private (underlying: Observer[T], bu
         }
       }
       else {
-        val remaining = itemsToPush.decrementAndGet(processed)
+        itemsToPush -= 1
         // if the queue is non-empty (i.e. concurrent modifications just happened)
         // then start all over again
-        if (remaining > 0) fastLoop(0)
+        if (itemsToPush > 0) fastLoop(0)
       }
     }
   }
@@ -268,12 +275,13 @@ object SynchronousBufferedObserver {
     new SynchronousBufferedObserver[T](observer, bufferSize)
 }
 
-final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], bufferSize: Int)(implicit ec: ExecutionContext)
+final class BackPressuredBufferedObserver[-T] private
+    (underlying: Observer[T], bufferSize: Int)(implicit ec: ExecutionContext)
   extends BufferedObserver[T] { self =>
 
   require(bufferSize > 0, "bufferSize must be a strictly positive number")
 
-  private[this] val queue = new ConcurrentQueue[T]()
+  private[this] val queue = JSArrayQueue.empty[T]
   // to be modified only in onError, before upstreamIsComplete
   private[this] var errorThrown: Throwable = null
   // to be modified only in onError / onComplete
@@ -283,15 +291,14 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
 
   // for enforcing non-concurrent updates and back-pressure
   // all access must be synchronized
-  private[this] val lock = SpinLock()
   private[this] var itemsToPush = 0
   private[this] var nextAckPromise = Promise[Ack]()
   private[this] var appliesBackPressure = false
 
-  def onNext(elem: T): Future[Ack] = lock.enter {
+  def onNext(elem: T): Future[Ack] = {
     if (!upstreamIsComplete && !downstreamIsDone) {
       try {
-        queue.offer(elem)
+        queue.enqueue(elem)
         pushToConsumer()
       }
       catch {
@@ -305,7 +312,7 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
     }
   }
 
-  def onError(ex: Throwable) = lock.enter {
+  def onError(ex: Throwable) = {
     if (!upstreamIsComplete && !downstreamIsDone) {
       errorThrown = ex
       upstreamIsComplete = true
@@ -313,7 +320,7 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
     }
   }
 
-  def onComplete() = lock.enter {
+  def onComplete() = {
     if (!upstreamIsComplete && !downstreamIsDone) {
       upstreamIsComplete = true
       pushToConsumer()
@@ -356,9 +363,10 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
     if (!downstreamIsDone) {
       // errors have priority, in case an error happened, it is streamed immediately
       val hasError = errorThrown ne null
-      val next: T = queue.poll()
 
-      if (next != null && !hasError)
+      if (queue.nonEmpty && !hasError) {
+        val next = queue.dequeue()
+
         underlying.onNext(next) match {
           case sync if sync.isCompleted =>
             sync match {
@@ -369,19 +377,16 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
               case done if done == Cancel || done.value.get == Cancel.IsSuccess =>
                 // ending loop
                 downstreamIsDone = true
-                lock.enter {
-                  itemsToPush = 0
-                  nextAckPromise.success(Cancel)
-                }
+                itemsToPush = 0
+                nextAckPromise.success(Cancel)
 
               case error if error.value.get.isFailure =>
                 // ending loop
                 downstreamIsDone = true
-                try underlying.onError(error.value.get.failed.get) finally
-                  lock.enter {
-                    itemsToPush = 0
-                    nextAckPromise.success(Cancel)
-                  }
+                try underlying.onError(error.value.get.failed.get) finally {
+                  itemsToPush = 0
+                  nextAckPromise.success(Cancel)
+                }
             }
 
           case async =>
@@ -393,35 +398,32 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
               case Cancel.IsSuccess =>
                 // ending loop
                 downstreamIsDone = true
-                lock.enter {
-                  itemsToPush = 0
-                  nextAckPromise.success(Cancel)
-                }
+                itemsToPush = 0
+                nextAckPromise.success(Cancel)
 
               case Failure(ex) =>
                 // ending loop
                 downstreamIsDone = true
-                try underlying.onError(ex) finally
-                  lock.enter {
-                    itemsToPush = 0
-                    nextAckPromise.success(Cancel)
-                  }
+                try underlying.onError(ex) finally {
+                  itemsToPush = 0
+                  nextAckPromise.success(Cancel)
+                }
 
               case other =>
                 // never happens, but to appease Scala's compiler
                 downstreamIsDone = true
-                try underlying.onError(new MatchError(s"$other")) finally
-                  lock.enter {
-                    itemsToPush = 0
-                    nextAckPromise.success(Cancel)
-                  }
+                try underlying.onError(new MatchError(s"$other")) finally {
+                  itemsToPush = 0
+                  nextAckPromise.success(Cancel)
+                }
             }
         }
+      }
       else if (upstreamIsComplete || hasError) {
         // Race-condition check, but if upstreamIsComplete=true is visible, then the queue should be fully published
         // because there's a clear happens-before relationship between queue.offer() and upstreamIsComplete=true
         // NOTE: errors have priority, so in case of an error seen, then the loop is stopped
-        if (!hasError && queue.nonEmpty) {
+        if (!hasError && !queue.isEmpty) {
           fastLoop(processed) // re-run loop
         }
         else {
@@ -433,7 +435,7 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
             else
               underlying.onComplete()
           }
-          finally lock.enter {
+          finally {
             queue.clear() // for GC purposes
             itemsToPush = 0
             nextAckPromise.success(Cancel)
@@ -441,7 +443,7 @@ final class BackPressuredBufferedObserver[-T] private (underlying: Observer[T], 
         }
       }
       else {
-        val remaining = lock.enter {
+        val remaining = {
           itemsToPush -= processed
           if (itemsToPush <= 0) // this really has to be LESS-or-equal
             nextAckPromise.success(Continue)

@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +19,17 @@
  
 package monifu.reactive.channels
 
+import monifu.concurrent.Scheduler
 import monifu.reactive.BufferPolicy
 import monifu.reactive.BufferPolicy.Unbounded
 import monifu.reactive.subjects.PublishSubject
-import scala.concurrent.ExecutionContext
 
 /**
  * Represents a [[monifu.reactive.Channel Channel]] that uses an underlying
  * [[monifu.reactive.subjects.PublishSubject PublishSubject]].
  */
-final class PublishChannel[T] private (policy: BufferPolicy, ec: ExecutionContext)
-  extends SubjectChannel(PublishSubject[T]()(ec), policy)(ec)
+final class PublishChannel[T] private (policy: BufferPolicy, s: Scheduler)
+  extends SubjectChannel(PublishSubject[T]()(s), policy)(s)
 
 object PublishChannel {
   /**
@@ -34,7 +37,7 @@ object PublishChannel {
    * [[monifu.reactive.subjects.PublishSubject PublishSubject]].
    */
   def apply[T](bufferPolicy: BufferPolicy = Unbounded)
-      (implicit ec: ExecutionContext): PublishChannel[T] = {
-    new PublishChannel[T](bufferPolicy, ec)
+      (implicit s: Scheduler): PublishChannel[T] = {
+    new PublishChannel[T](bufferPolicy, s)
   }
 }

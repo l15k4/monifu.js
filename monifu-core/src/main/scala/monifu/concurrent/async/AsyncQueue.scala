@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,48 +19,40 @@
  
 package monifu.concurrent.async
 
-import scala.concurrent.{Promise, Future}
-import scala.collection.immutable.Queue
-import monifu.concurrent.atomic.padded.Atomic
+import monifu.js.JSArrayQueue
+import scala.concurrent.{Future, Promise}
 
 
 final class AsyncQueue[T] private (elems: T*) {
-  private[this] val state = Atomic(State(Queue(elems : _*), Queue.empty))
-
-  def poll(): Future[T] =
-    state.transformAndExtract {
-      case State(elements, promises) =>
-        if (elements.nonEmpty) {
-          val (e, newQ) = elements.dequeue
-          (Future.successful(e), State(newQ, promises))
-        }
-        else {
-          val p = Promise[T]()
-          (p.future, State(elements, promises.enqueue(p)))
-        }
+  def poll(): Future[T] = {
+    if (items.nonEmpty) {
+      val item = items.dequeue()
+      Future.successful(item)
     }
+    else {
+      val p = Promise[T]()
+      promises.enqueue(p)
+      p.future
+    }
+  }
 
   def offer(elem: T): Unit = {
-    val p = state.transformAndExtract {
-      case State(elements, promises) =>
-        if (promises.nonEmpty) {
-          val (p, q) = promises.dequeue
-          (Some(p), State(elements, q))
-        }
-        else
-          (None, State(elements.enqueue(elem), promises))
+    if (promises.nonEmpty) {
+      val p = promises.dequeue()
+      p.success(elem)
     }
-
-    p.foreach(_.success(elem))
+    else {
+      items.enqueue(elem)
+    }
   }
   
-  def clear(): Unit =
-    state.set(State(Queue.empty, Queue.empty))
+  def clear(): Unit = {
+    items.clear()
+    promises.clear()
+  }
 
-  def clearAndOffer(elem: T): Unit =
-    state.set(State(Queue(elem), Queue.empty))
-
-  private[this] case class State(elements: Queue[T], promises: Queue[Promise[T]])
+  private[this] val items = JSArrayQueue.empty[T]
+  private[this] val promises = JSArrayQueue.empty[Promise[T]]
 }
 
 object AsyncQueue {

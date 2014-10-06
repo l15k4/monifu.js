@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +19,7 @@
  
 package monifu.reactive.internals
 
+import monifu.concurrent.Scheduler
 import monifu.concurrent.atomic.Atomic
 import monifu.concurrent.locks.SpinLock
 import monifu.reactive.Ack.{Cancel, Continue}
@@ -30,7 +34,7 @@ import scala.util.control.NonFatal
 
 private[monifu] final class BoundedMergeBuffer[U]
   (downstream: Observer[U], mergeBatchSize: Int, bufferPolicy: BufferPolicy)
-      (implicit ec: ExecutionContext) extends Observer[U] { self =>
+      (implicit s: Scheduler) extends Observer[U] { self =>
 
   private[this] val lock = SpinLock()
   private[this] val buffer = BufferedObserver(downstream, bufferPolicy)

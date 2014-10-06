@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,10 +40,9 @@ import scala.concurrent.{ExecutionContext, Future}
  *
  * <img src="https://raw.githubusercontent.com/wiki/alexandru/monifu/assets/rx-operators/S.AsyncSubject.e.png" />
  */
-final class AsyncSubject[T] private (ec: ExecutionContext) extends Subject[T,T] { self =>
+final class AsyncSubject[T] private (implicit ec: ExecutionContext) extends Subject[T,T] { self =>
   import monifu.reactive.subjects.AsyncSubject._
 
-  override implicit val context = ec
   private[this] val state = Atomic(Active(Set.empty[Observer[T]]) : State[T])
   private[this] var onNextHappened = false
   private[this] var currentElem: T = _
@@ -103,7 +105,7 @@ final class AsyncSubject[T] private (ec: ExecutionContext) extends Subject[T,T] 
 
 object AsyncSubject {
   def apply[T]()(implicit ec: ExecutionContext): AsyncSubject[T] =
-    new AsyncSubject[T](ec)
+    new AsyncSubject[T]()
 
   private sealed trait State[+T]
   private case class Active[T](observers: Set[Observer[T]]) extends State[T]

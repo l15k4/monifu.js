@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,8 +20,6 @@
 package monifu.concurrent.cancelables
 
 import monifu.concurrent.Cancelable
-import monifu.concurrent.atomic.Atomic
-import scala.annotation.tailrec
 
 /**
  * Represents a [[monifu.concurrent.Cancelable]] whose underlying cancelable reference can be swapped for another.
@@ -37,27 +38,18 @@ import scala.annotation.tailrec
 final class MultiAssignmentCancelable private () extends BooleanCancelable {
   private[this] var _isCanceled = false
   private[this] var _subscription = Cancelable()
-  private[this] val lock = Atomic(false)
 
-  @tailrec
-  def isCanceled: Boolean =
-    if (!lock.compareAndSet(expect = false, update = true))
-      isCanceled
-    else
-      try _isCanceled finally lock.set(update = false)
+  def isCanceled: Boolean = {
+    _isCanceled
+  }
 
-  @tailrec
-  def cancel(): Unit =
-    if (!lock.compareAndSet(expect = false, update = true))
-      cancel()
-    else if (_isCanceled)
-      lock.set(update = false)
-    else
+  def cancel(): Unit = {
+    if (!_isCanceled)
       try _subscription.cancel() finally {
         _isCanceled = true
         _subscription = Cancelable.empty
-        lock.set(update = false)
       }
+  }
 
   /**
    * Swaps the underlying cancelable reference with `s`.
@@ -65,14 +57,11 @@ final class MultiAssignmentCancelable private () extends BooleanCancelable {
    * In case this `MultiAssignmentCancelable` is already canceled,
    * then the reference `value` will also be canceled on assignment.
    */
-  @tailrec
   def update(value: Cancelable): Unit = {
-    if (!lock.compareAndSet(expect = false, update = true))
-      update(value)
-    else if (_isCanceled)
-      try value.cancel() finally lock.set(update = false)
+    if (!_isCanceled)
+      _subscription = value
     else
-      try _subscription = value finally lock.set(update = false)
+      value.cancel()
   }
 
   /**

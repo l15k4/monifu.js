@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,25 +19,24 @@
  
 package monifu.reactive.channels
 
+import monifu.concurrent.Scheduler
 import monifu.reactive.BufferPolicy
 import monifu.reactive.BufferPolicy.Unbounded
 import monifu.reactive.subjects.AsyncSubject
-import scala.concurrent.ExecutionContext
 
 /**
  * Represents a [[monifu.reactive.Channel Channel]] that uses an underlying 
  * [[monifu.reactive.subjects.AsyncSubject AsyncSubject]].
  */
-final class AsyncChannel[T] private (policy: BufferPolicy, ec: ExecutionContext)
-  extends SubjectChannel(AsyncSubject[T]()(ec), policy)(ec)
+final class AsyncChannel[T] private (policy: BufferPolicy, s: Scheduler)
+  extends SubjectChannel(AsyncSubject[T]()(s), policy)(s)
 
 object AsyncChannel {
   /**
    * Builds a [[monifu.reactive.Channel Channel]] that uses an underlying
    * [[monifu.reactive.subjects.AsyncSubject AsyncSubject]].
    */
-  def apply[T](bufferPolicy: BufferPolicy = Unbounded)
-      (implicit ec: ExecutionContext): AsyncChannel[T] = {
-    new AsyncChannel[T](bufferPolicy, ec)
+  def apply[T](bufferPolicy: BufferPolicy = Unbounded)(implicit s: Scheduler): AsyncChannel[T] = {
+    new AsyncChannel[T](bufferPolicy, s)
   }
 }

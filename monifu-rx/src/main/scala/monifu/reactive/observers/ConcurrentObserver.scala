@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,12 +19,11 @@
  
 package monifu.reactive.observers
 
-import monifu.concurrent.atomic.padded.Atomic
+import monifu.concurrent.Scheduler
 import monifu.reactive.Ack.{Cancel, Continue}
-import monifu.reactive.{Ack, Observer}
 import monifu.reactive.internals.FutureAckExtensions
-
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import monifu.reactive.{Ack, Observer}
+import scala.concurrent.{Future, Promise}
 
 
 /**
@@ -41,14 +43,14 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
  * served by [[monifu.reactive.observers.BufferedObserver BufferedObserver]].
  */
 final class ConcurrentObserver[-T] private (underlying: Observer[T])
-    (implicit ec: ExecutionContext) extends Observer[T] {
+    (implicit s: Scheduler) extends Observer[T] {
 
-  private[this] val ack = Atomic(Continue : Future[Ack])
+  private[this] var ack = Continue : Future[Ack]
 
   def onNext(elem: T) = {
     val p = Promise[Ack]()
-    val newAck = p.future
-    val oldAck = ack.getAndSet(newAck)
+    val oldAck = ack
+    ack = p.future
 
     oldAck.onCompleteNow {
       case Continue.IsSuccess =>
@@ -57,21 +59,23 @@ final class ConcurrentObserver[-T] private (underlying: Observer[T])
         p.complete(other)
     }
 
-    newAck
+    ack
   }
 
   def onError(ex: Throwable): Unit = {
-    val oldAck = ack.getAndSet(Cancel)
+    val oldAck = ack
+    ack = Cancel
     oldAck.onSuccess { case Continue => underlying.onError(ex) }
   }
 
   def onComplete(): Unit = {
-    val oldAck = ack.getAndSet(Cancel)
+    val oldAck = ack
+    ack = Cancel
     oldAck.onSuccess { case Continue => underlying.onComplete() }
   }
 }
 
 object ConcurrentObserver {
-  def apply[T](observer: Observer[T])(implicit ec: ExecutionContext): ConcurrentObserver[T] =
+  def apply[T](observer: Observer[T])(implicit s: Scheduler): ConcurrentObserver[T] =
     new ConcurrentObserver[T](observer)
 }

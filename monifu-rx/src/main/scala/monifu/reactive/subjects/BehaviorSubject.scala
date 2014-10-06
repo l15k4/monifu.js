@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,13 +19,15 @@
  
 package monifu.reactive.subjects
 
-import monifu.concurrent.atomic.padded.Atomic
+import monifu.concurrent.Scheduler
+import monifu.concurrent.atomic.Atomic
 import monifu.reactive.Ack.{Cancel, Continue}
 import monifu.reactive.internals.{FutureAckExtensions, PromiseCounter}
 import monifu.reactive.observers.ConnectableObserver
 import monifu.reactive.{Ack, Observer, Subject}
 import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
+
 
 /**
  * `BehaviorSubject` when subscribed, will emit the most recently emitted item by the source,
@@ -36,11 +41,11 @@ import scala.concurrent.{ExecutionContext, Future}
  *
  * <img src="https://raw.githubusercontent.com/wiki/alexandru/monifu/assets/rx-operators/S.BehaviorSubject.png" />
  */
-final class BehaviorSubject[T] private (initialValue: T, ec: ExecutionContext) extends Subject[T,T] { self =>
+final class BehaviorSubject[T] private (initialValue: T)
+    (implicit s: Scheduler) extends Subject[T,T] { self =>
   import monifu.reactive.subjects.BehaviorSubject.State
   import monifu.reactive.subjects.BehaviorSubject.State._
 
-  implicit val context = ec
   private[this] val state = Atomic(Empty(initialValue) : State[T])
 
   def subscribeFn(observer: Observer[T]): Unit = {
@@ -185,8 +190,8 @@ final class BehaviorSubject[T] private (initialValue: T, ec: ExecutionContext) e
 }
 
 object BehaviorSubject {
-  def apply[T](initialValue: T)(implicit ec: ExecutionContext): BehaviorSubject[T] =
-    new BehaviorSubject[T](initialValue, ec)
+  def apply[T](initialValue: T)(implicit s: Scheduler): BehaviorSubject[T] =
+    new BehaviorSubject[T](initialValue)
 
   private sealed trait State[T]
   private object State {

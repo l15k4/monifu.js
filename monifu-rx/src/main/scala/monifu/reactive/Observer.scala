@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,15 +19,17 @@
  
 package monifu.reactive
 
+import monifu.concurrent.Scheduler
 import monifu.reactive.Ack.{Cancel, Continue}
-import monifu.reactive.observers.{SafeObserver, SynchronousObserver}
+import monifu.reactive.observers.SynchronousObserver
 import monifu.reactive.streams.{ObserverAsSubscriber, SubscriberAsObserver, SynchronousObserverAsSubscriber}
 import org.reactivestreams.Subscriber
 
 import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{Future, Promise}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
+
 
 /**
  * The Observer from the Rx pattern is the trio of callbacks that
@@ -51,7 +56,7 @@ object Observer {
    * Given a [[Subscriber]] as defined by the [[http://www.reactive-streams.org/ Reactive Streams]]
    * specification, it builds an [[Observer]] instance compliant with the Monifu Rx implementation.
    */
-  def from[T](subscriber: Subscriber[T])(implicit ec: ExecutionContext): Observer[T] = {
+  def from[T](subscriber: Subscriber[T])(implicit s: Scheduler): Observer[T] = {
     SubscriberAsObserver(subscriber)
   }
 
@@ -59,7 +64,7 @@ object Observer {
    * Transforms the source [[Observer]] into a [[Subscriber]] instance as defined by the
    * [[http://www.reactive-streams.org/ Reactive Streams]] specification.
    */
-  def asSubscriber[T](observer: Observer[T], requestSize: Int = 128)(implicit ec: ExecutionContext): Subscriber[T] = {
+  def asSubscriber[T](observer: Observer[T], requestSize: Int = 128)(implicit s: Scheduler): Subscriber[T] = {
     observer match {
       case sync: SynchronousObserver[_] =>
         val inst = sync.asInstanceOf[SynchronousObserver[T]]
@@ -72,7 +77,7 @@ object Observer {
   /**
    * Implicit conversion from [[Observer]] to `org.reactivestreams.Subscriber`.
    */
-  def ObserverIsSubscriber[T](source: Observer[T])(implicit ec: ExecutionContext): Subscriber[T] =
+  def ObserverIsSubscriber[T](source: Observer[T])(implicit s: Scheduler): Subscriber[T] =
     Observer.asSubscriber(source)
 
   /**
@@ -80,14 +85,12 @@ object Observer {
    * respecting the contract and returning a `Future[Ack]` with the last
    * acknowledgement given after the last emitted element.
    */
-  def feed[T](observer: Observer[T], iterable: Iterable[T])(implicit ec: ExecutionContext): Future[Ack] = {
-    val safeObs = SafeObserver(observer)
-
+  def feed[T](observer: Observer[T], iterable: Iterable[T])(implicit s: Scheduler): Future[Ack] = {
     def scheduleFeedLoop(promise: Promise[Ack], iterator: Iterator[T]): Future[Ack] = {
-      ec.execute(new Runnable {
+      s.execute(new Runnable {
         @tailrec
         def fastLoop(): Unit = {
-          val ack = safeObs.onNext(iterator.next())
+          val ack = observer.onNext(iterator.next())
 
           if (iterator.hasNext)
             ack match {
@@ -113,7 +116,7 @@ object Observer {
         def run(): Unit = {
           try fastLoop() catch {
             case NonFatal(ex) =>
-              try safeObs.onError(ex) finally {
+              try observer.onError(ex) finally {
                 promise.failure(ex)
               }
           }

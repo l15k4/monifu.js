@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2014 by its authors. Some rights reserved. 
+ * Copyright (c) 2014 by its authors. Some rights reserved.
+ * See the project homepage at
+ *
+ *     http://www.monifu.org/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *  	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +19,7 @@
  
 package monifu.concurrent.cancelables
 
-import monifu.concurrent.atomic.Atomic
 import monifu.concurrent.Cancelable
-import scala.annotation.tailrec
 
 /**
  * Represents a `Cancelable` that only executes the canceling logic when all
@@ -27,38 +28,35 @@ import scala.annotation.tailrec
  * After all dependent cancelables have been canceled, `onCancel` gets called.
  */
 final class RefCountCancelable private (onCancel: () => Unit) extends BooleanCancelable {
-  def isCanceled: Boolean =
-    state.get.isCanceled
+  private[this] var canceled = false
+  private[this] var activeCounter = 0
 
-  @tailrec
+  def isCanceled: Boolean = {
+    canceled
+  }
+
   def acquire(): Cancelable = {
-    val oldState = state.get
-    if (oldState.isCanceled)
+    if (canceled) {
       Cancelable.empty
-    else if (!state.compareAndSet(oldState, oldState.copy(activeCounter = oldState.activeCounter + 1)))
-      acquire()
-    else
+    }
+    else {
+      activeCounter += 1
+
       Cancelable {
-        val newState = state.transformAndGet(s => s.copy(activeCounter = s.activeCounter - 1))
-        if (newState.activeCounter == 0 && newState.isCanceled)
+        activeCounter -= 1
+        if (activeCounter == 0 && canceled)
           onCancel()
       }
+    }
   }
 
   def cancel(): Unit = {
-    val oldState = state.get
-    if (!oldState.isCanceled)
-      if (!state.compareAndSet(oldState, oldState.copy(isCanceled = true)))
-        cancel()
-      else if (oldState.activeCounter == 0)
+    if (!canceled) {
+      canceled = true
+      if (activeCounter == 0)
         onCancel()
+    }
   }
-
-  private[this] val state = Atomic(State(isCanceled = false, activeCounter = 0))
-  private[this] case class State(
-    isCanceled: Boolean,
-    activeCounter: Int
-  )
 }
 
 object RefCountCancelable {
